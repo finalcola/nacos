@@ -25,6 +25,7 @@ import static com.alibaba.nacos.core.utils.SystemUtils.STANDALONE_MODE;
 
 /**
  * datasource adapter
+ * 根据配置，返回本地数据源和集群数据源
  *
  * @author Nacos
  */

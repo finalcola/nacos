@@ -46,12 +46,24 @@ public class HostReactor {
 
     private Map<String, Object> updatingMap;
 
+    /**
+     * 处理server push的serverInfo
+     */
     private PushReceiver pushReceiver;
 
+    /**
+     * 事件通知组件
+     */
     private EventDispatcher eventDispatcher;
 
+    /**
+     * API代理类
+     */
     private NamingProxy serverProxy;
 
+    /**
+     * 故障转移开关、缓存相关组件
+     */
     private FailoverReactor failoverReactor;
 
     private String cacheDir;
@@ -97,6 +109,7 @@ public class HostReactor {
         return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
     }
 
+    // 处理接收的service信息
     public ServiceInfo processServiceJSON(String json) {
         ServiceInfo serviceInfo = JSON.parseObject(json, ServiceInfo.class);
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
@@ -111,13 +124,16 @@ public class HostReactor {
                     + ", new-t: " + serviceInfo.getLastRefTime());
             }
 
+            // 更新serviceInfo
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
 
+            // 原host列表
             Map<String, Instance> oldHostMap = new HashMap<String, Instance>(oldService.getHosts().size());
             for (Instance host : oldService.getHosts()) {
                 oldHostMap.put(host.toInetAddr(), host);
             }
 
+            // 新host列表
             Map<String, Instance> newHostMap = new HashMap<String, Instance>(serviceInfo.getHosts().size());
             for (Instance host : serviceInfo.getHosts()) {
                 newHostMap.put(host.toInetAddr(), host);
@@ -156,6 +172,7 @@ public class HostReactor {
 
             }
 
+            // 打印新增、删除、更改的hosts
             if (newHosts.size() > 0) {
                 NAMING_LOGGER.info("new ips(" + newHosts.size() + ") service: "
                     + serviceInfo.getName() + " -> " + JSON.toJSONString(newHosts));
@@ -173,6 +190,7 @@ public class HostReactor {
 
             serviceInfo.setJsonFromServer(json);
 
+            // 发送service更新通知，并写入磁盘
             if (newHosts.size() > 0 || remvHosts.size() > 0 || modHosts.size() > 0) {
                 eventDispatcher.serviceChanged(serviceInfo);
                 DiskCache.write(serviceInfo, cacheDir);
@@ -202,35 +220,43 @@ public class HostReactor {
         return serviceInfoMap.get(key);
     }
 
+    /**
+     * 直接从server查询，不经过本地缓存且不注册到server
+     */
     public ServiceInfo getServiceInfoDirectlyFromServer(final String serviceName, final String clusters) throws NacosException {
-        String result = serverProxy.queryList(serviceName, clusters, 0, false);
+        String result = serverProxy.queryList(serviceName, clusters, 0/*不会注册到server*/, false);
         if (StringUtils.isNotEmpty(result)) {
             return JSON.parseObject(result, ServiceInfo.class);
         }
         return null;
     }
 
+    // 获取serviceInfo
     public ServiceInfo getServiceInfo(final String serviceName, final String clusters) {
 
         NAMING_LOGGER.debug("failover-mode: " + failoverReactor.isFailoverSwitch());
         String key = ServiceInfo.getKey(serviceName, clusters);
+        // 开启故障转移，则从本地缓存获取
         if (failoverReactor.isFailoverSwitch()) {
             return failoverReactor.getService(key);
         }
 
+        // 从serviceInfoMap中读取
         ServiceInfo serviceObj = getServiceInfo0(serviceName, clusters);
 
         if (null == serviceObj) {
+            // 创建serviceInfo并更新内容
             serviceObj = new ServiceInfo(serviceName, clusters);
 
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
 
             updatingMap.put(serviceName, new Object());
+            // 更新serviceInfo信息
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
 
         } else if (updatingMap.containsKey(serviceName)) {
-
+            // 正在进行更新操作
             if (UPDATE_HOLD_INTERVAL > 0) {
                 // hold a moment waiting for update finish
                 synchronized (serviceObj) {
@@ -243,6 +269,7 @@ public class HostReactor {
             }
         }
 
+        // 创建定时更新任务
         scheduleUpdateIfAbsent(serviceName, clusters);
 
         return serviceInfoMap.get(serviceObj.getKey());
@@ -258,6 +285,7 @@ public class HostReactor {
                 return;
             }
 
+            // 提交定时更新任务
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, clusters));
             futureMap.put(ServiceInfo.getKey(serviceName, clusters), future);
         }
@@ -266,9 +294,10 @@ public class HostReactor {
     public void updateServiceNow(String serviceName, String clusters) {
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
-
+            // 请求API
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUDPPort(), false);
             if (StringUtils.isNotEmpty(result)) {
+                // 解析返回结果
                 processServiceJSON(result);
             }
         } catch (Exception e) {
@@ -290,6 +319,9 @@ public class HostReactor {
         }
     }
 
+    /**
+     * 定时刷新任务
+     */
     public class UpdateTask implements Runnable {
         long lastRefTime = Long.MAX_VALUE;
         private String clusters;
@@ -306,6 +338,7 @@ public class HostReactor {
                 ServiceInfo serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
 
                 if (serviceObj == null) {
+                    // 更新serviceInfo
                     updateServiceNow(serviceName, clusters);
                     executor.schedule(this, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
                     return;
@@ -320,6 +353,7 @@ public class HostReactor {
                     refreshOnly(serviceName, clusters);
                 }
 
+                // 定时刷新本地serviceInfo
                 executor.schedule(this, serviceObj.getCacheMillis(), TimeUnit.MILLISECONDS);
 
                 lastRefTime = serviceObj.getLastRefTime();

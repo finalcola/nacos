@@ -38,6 +38,7 @@ public class LocalConfigInfoProcessor {
 
     private static final Logger LOGGER = LogUtils.logger(LocalConfigInfoProcessor.class);
 
+    // 读取故障转移文件内容
     static public String getFailover(String serverName, String dataId, String group, String tenant) {
         File localPath = getFailoverFile(serverName, dataId, group, tenant);
         if (!localPath.exists() || !localPath.isFile()) {
@@ -72,11 +73,13 @@ public class LocalConfigInfoProcessor {
         }
     }
 
+    // 读取文件内容
     static private String readFile(File file) throws IOException {
         if (!file.exists() || !file.isFile()) {
             return null;
         }
 
+        // 单机多实例模式，读取文件时需要加锁
         if (JVMUtil.isMultiInstance()) {
             return ConcurrentDiskUtil.getFileContent(file, Constants.ENCODE);
         } else {
@@ -95,11 +98,14 @@ public class LocalConfigInfoProcessor {
         }
     }
 
+    // 保存响应结果到快照文件
     static public void saveSnapshot(String envName, String dataId, String group, String tenant, String config) {
         if (!SnapShotSwitch.getIsSnapShot()) {
             return;
         }
+        // 快照文件
         File file = getSnapshotFile(envName, dataId, group, tenant);
+        // 返回为空，删除文件
         if (null == config) {
             try {
                 IOUtils.delete(file);
@@ -107,6 +113,7 @@ public class LocalConfigInfoProcessor {
                 LOGGER.error("[" + envName + "] delete snapshot error, " + file, ioe);
             }
         } else {
+            // 写入响应结果
             try {
                 File parentFile = file.getParentFile();
                 if (!parentFile.exists()) {
@@ -160,6 +167,7 @@ public class LocalConfigInfoProcessor {
         }
     }
 
+    // 获取故障转移文件
     static File getFailoverFile(String serverName, String dataId, String group, String tenant) {
         File tmp = new File(LOCAL_SNAPSHOT_PATH, serverName + "_nacos");
         tmp = new File(tmp, "data");

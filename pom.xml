@@ -203,13 +203,13 @@
                     </rulesets>
                     <printFailingErrors>true</printFailingErrors>
                 </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <goals>-->
+<!--                            <goal>check</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
                 <dependencies>
                     <dependency>
                         <groupId>com.alibaba.p3c</groupId>

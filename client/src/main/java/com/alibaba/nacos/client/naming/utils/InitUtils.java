@@ -90,6 +90,9 @@ public class InitUtils {
         return tmpNamespace;
     }
 
+    /**
+     * 初始化context
+     */
     public static void initWebRootContext() {
         // support the web context with ali-yun if the app deploy by EDAS
         final String webContext = System.getProperty(SystemPropertyKeyConst.NAMING_WEB_CONTEXT);

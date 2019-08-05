@@ -30,6 +30,7 @@ public class ConfigFactory {
 
     /**
      * Create Config
+     * 通过反射创建ConfigService
      *
      * @param properties init param
      * @return ConfigService

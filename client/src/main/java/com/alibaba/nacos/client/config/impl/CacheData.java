@@ -157,6 +157,7 @@ public class CacheData {
 
     void checkListenerMd5() {
         for (ManagerListenerWrap wrap : listeners) {
+            // 内容发生了修改，通知listener
             if (!md5.equals(wrap.lastCallMd5)) {
                 safeNotifyListener(dataId, group, content, md5, wrap);
             }
@@ -187,7 +188,9 @@ public class CacheData {
                     cr.setContent(content);
                     configFilterChainManager.doFilter(null, cr);
                     String contentTmp = cr.getContent();
+                    // 调用listener
                     listener.receiveConfigInfo(contentTmp);
+                    // 更新listener的md5值
                     listenerWrap.lastCallMd5 = md5;
                     LOGGER.info("[{}] [notify-ok] dataId={}, group={}, md5={}, listener={} ", name, dataId, group, md5,
                         listener);
@@ -223,6 +226,7 @@ public class CacheData {
         return (null == config) ? Constants.NULL : MD5.getInstance().getMD5String(config);
     }
 
+    // 根据本地failover文件或快照文件初始化内容
     private String loadCacheContentFromDiskLocal(String name, String dataId, String group, String tenant) {
         String content = LocalConfigInfoProcessor.getFailover(name, dataId, group, tenant);
         content = (null != content) ? content
@@ -270,6 +274,9 @@ public class CacheData {
     public final String tenant;
     private final CopyOnWriteArrayList<ManagerListenerWrap> listeners;
 
+    /**
+     * 通过md5检查内容是否发送了更新，并以此为依据通知listener
+     */
     private volatile String md5;
     /**
      * whether use local config

@@ -64,7 +64,7 @@ public class ConfigExample {
 
         content = configService.getConfig(dataId, group, 5000);
         System.out.println(content);
-        Thread.sleep(300000);
+        Thread.sleep(600000);
 
     }
 }

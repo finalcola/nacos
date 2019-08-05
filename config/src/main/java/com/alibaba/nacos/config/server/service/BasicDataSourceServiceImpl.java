@@ -67,16 +67,34 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
 
     private static final String DB_LOAD_ERROR_MSG = "[db-load-error]load jdbc.properties error";
 
+    /**
+     * 保存建立的数据源连接
+     */
     private List<BasicDataSource> dataSourceList = new ArrayList<BasicDataSource>();
+    /**
+     * masterDB
+     */
     private JdbcTemplate jt;
+    /**
+     * masterDB的事务管理器(会随着定时任务而切换)
+     */
     private DataSourceTransactionManager tm;
+    /**
+     * 事务管理器
+     */
     private TransactionTemplate tjt;
 
     private JdbcTemplate testMasterJT;
     private JdbcTemplate testMasterWritableJT;
 
+    /**
+     * 保存数据源对应的JdbcTemplate
+     */
     volatile private List<JdbcTemplate> testJTList;
     volatile private List<Boolean> isHealthList;
+    /**
+     * 作为masterDB的节点
+     */
     private volatile int masterIndex;
     private static Pattern ipPattern = Pattern.compile("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
 
@@ -141,6 +159,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
         }
     }
 
+    // 根据配置，加载数据库
     @Override
     public synchronized void reload() throws IOException {
         List<BasicDataSource> dblist = new ArrayList<BasicDataSource>();
@@ -152,7 +171,9 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             }
             int dbNum = Integer.parseInt(val.trim());
 
+            // 根据配置，加载数据库
             for (int i = 0; i < dbNum; i++) {
+                // 为每个数据库创建一个数据库源
                 BasicDataSource ds = new BasicDataSource();
                 ds.setDriverClassName(JDBC_DRIVER_NAME);
 
@@ -210,7 +231,9 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             }
 
             dataSourceList = dblist;
+            // 选择master任务
             new SelectMasterTask().run();
+            // 健康检查任务
             new CheckDBHealthTask().run();
         } catch (RuntimeException e) {
             fatalLog.error(DB_LOAD_ERROR_MSG, e);
@@ -219,6 +242,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
         }
     }
 
+    // 检查masterDB是否可写
     @Override
     public boolean checkMasterWritable() {
 
@@ -227,6 +251,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
          *  防止login接口因为主库不可用而rt太长
          */
         testMasterWritableJT.setQueryTimeout(1);
+        // 查询数据库readonly配置
         String sql = " SELECT @@read_only ";
 
         try {
@@ -263,6 +288,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
         return bds.getUrl();
     }
 
+    // 获取数据库集群的健康情况
     @Override
     public String getHealth() {
         for (int i = 0; i < isHealthList.size(); i++) {
@@ -308,6 +334,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             int index = -1;
             for (BasicDataSource ds : dataSourceList) {
                 index++;
+                //
                 testMasterJT.setDataSource(ds);
                 testMasterJT.setQueryTimeout(queryTimeout);
                 try {
@@ -339,6 +366,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
 
         @Override
         public void run() {
+            // 检查数据库健康情况
             defaultLog.info("check db health.");
             String sql = "SELECT * FROM config_info_beta WHERE id = 1";
 

@@ -40,16 +40,21 @@ import java.util.Map;
  */
 public class HttpSimpleClient {
 
+    // 发起get请求
     static public HttpResult httpGet(String url, List<String> headers, List<String> paramValues,
                                      String encoding, long readTimeoutMs, boolean isSSL) throws IOException {
+        // 拼接参数（=、&），并进行编码
         String encodedContent = encodingParams(paramValues, encoding);
         url += (null == encodedContent) ? "" : ("?" + encodedContent);
+
+        // 对接口进行限流
         if (Limiter.isLimit(MD5.getInstance().getMD5String(
             new StringBuilder(url).append(encodedContent).toString()))) {
             return new HttpResult(NacosException.CLIENT_OVER_THRESHOLD,
                 "More than client-side current limit threshold");
         }
 
+        // 使用JDK Connection进行网络连接
         HttpURLConnection conn = null;
 
         try {
@@ -65,6 +70,7 @@ public class HttpSimpleClient {
             int respCode = conn.getResponseCode();
             String resp = null;
 
+            // 读取响应
             if (HttpURLConnection.HTTP_OK == respCode) {
                 resp = IOUtils.toString(conn.getInputStream(), encoding);
             } else {
@@ -195,6 +201,7 @@ public class HttpSimpleClient {
         return httpGet(url, headers, paramValues, encoding, readTimeoutMs, false);
     }
 
+    // 设置参数
     static private void setHeaders(HttpURLConnection conn, List<String> headers, String encoding) {
         if (null != headers) {
             for (Iterator<String> iter = headers.iterator(); iter.hasNext(); ) {
@@ -225,6 +232,7 @@ public class HttpSimpleClient {
         return newHeaders;
     }
 
+    // 拼接参数（=、&），并进行编码
     static private String encodingParams(List<String> paramValues, String encoding)
         throws UnsupportedEncodingException {
         StringBuilder sb = new StringBuilder();

@@ -36,12 +36,14 @@ public class Limiter {
 
     private static final int CAPACITY_SIZE = 1000;
     private static final int LIMIT_TIME = 1000;
+    // 本地缓存
     private static Cache<String, RateLimiter> cache = CacheBuilder.newBuilder()
         .initialCapacity(CAPACITY_SIZE).expireAfterAccess(1, TimeUnit.MINUTES)
         .build();
 
     /**
      * qps 5
+     * 每秒生成5个令牌
      */
     private static double limit = 5;
 
@@ -56,7 +58,9 @@ public class Limiter {
         }
     }
 
+    // 使用Guava RateLimiter进行限流
     public static boolean isLimit(String accessKeyID) {
+        // 限流
         RateLimiter rateLimiter = null;
         try {
             rateLimiter = cache.get(accessKeyID, new Callable<RateLimiter>() {

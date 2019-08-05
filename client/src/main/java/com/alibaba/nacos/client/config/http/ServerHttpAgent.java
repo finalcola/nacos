@@ -46,6 +46,7 @@ import java.util.concurrent.Callable;
 
 /**
  * Server Agent
+ * 代理类，封装HTTP请求操作
  *
  * @author water.lyl
  */
@@ -68,15 +69,18 @@ public class ServerHttpAgent implements HttpAgent {
         final long endTime = System.currentTimeMillis() + readTimeoutMs;
         final boolean isSSL = false;
 
+        // 获取当前使用的url
         String currentServerAddr = serverListMgr.getCurrentServerAddr();
         int maxRetry = this.maxRetry;
 
         do {
             try {
+                // 鉴权相关
                 List<String> newHeaders = getSpasHeaders(paramValues);
                 if (headers != null) {
                     newHeaders.addAll(headers);
                 }
+                // http请求
                 HttpResult result = HttpSimpleClient.httpGet(
                     getUrl(currentServerAddr, path), newHeaders, paramValues, encoding,
                     readTimeoutMs, isSSL);
@@ -102,10 +106,12 @@ public class ServerHttpAgent implements HttpAgent {
             if (serverListMgr.getIterator().hasNext()) {
                 currentServerAddr = serverListMgr.getIterator().next();
             } else {
+                // 重试次数
                 maxRetry --;
                 if (maxRetry < 0) {
                     throw new ConnectException("[NACOS HTTP-GET] The maximum number of tolerable server reconnection errors has been reached");
                 }
+                // 重新返回地址列表（重打乱顺序）
                 serverListMgr.refreshCurrentServerAddr();
             }
 
@@ -115,6 +121,7 @@ public class ServerHttpAgent implements HttpAgent {
         throw new ConnectException("no available server");
     }
 
+    // 与get类似
     @Override
     public HttpResult httpPost(String path, List<String> headers, List<String> paramValues, String encoding,
                                long readTimeoutMs) throws IOException {
@@ -223,6 +230,7 @@ public class ServerHttpAgent implements HttpAgent {
         throw new ConnectException("no available server");
     }
 
+    // 拼接URL
     private String getUrl(String serverAddr, String relativePath) {
         return serverAddr + "/" + serverListMgr.getContentPath() + relativePath;
     }
@@ -242,12 +250,16 @@ public class ServerHttpAgent implements HttpAgent {
 
     public ServerHttpAgent(Properties properties) throws NacosException {
         serverListMgr = new ServerListManager(properties);
+        // 根据配置初始化其他组件
         init(properties);
     }
 
     private void init(Properties properties) {
+        // 编码（默认utf8）
         initEncode(properties);
+        // 安全、验证相关
         initAkSk(properties);
+        // 获取最大重试次数（默认3）
         initMaxRetry(properties);
     }
 
@@ -290,6 +302,7 @@ public class ServerHttpAgent implements HttpAgent {
         serverListMgr.start();
     }
 
+    // 鉴权
     private List<String> getSpasHeaders(List<String> paramValues) throws IOException {
         List<String> newHeaders = new ArrayList<String>();
         // STS 临时凭证鉴权的优先级高于 AK/SK 鉴权
@@ -439,6 +452,7 @@ public class ServerHttpAgent implements HttpAgent {
     private String encode;
     private int maxRetry = 3;
     private volatile STSCredential sTSCredential;
+    // 管理server地址列表
     final ServerListManager serverListMgr;
 
 }

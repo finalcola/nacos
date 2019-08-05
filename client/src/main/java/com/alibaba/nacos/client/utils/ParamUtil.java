@@ -40,6 +40,7 @@ public class ParamUtil {
     private static String defaultNodesPath = "serverlist";
     private static String appKey;
     private static String appName;
+    // 默认的server端口为8848
     private static String defaultServerPort;
     private static String clientVersion = "unknown";
     private static int connectTimeout;

@@ -63,12 +63,24 @@ public class NacosNamingService implements NamingService {
 
     private String logName;
 
+    /**
+     * 负责管理host变更
+     */
     private HostReactor hostReactor;
 
+    /**
+     * 心跳任务
+     */
     private BeatReactor beatReactor;
 
+    /**
+     * 负责服务变更事件通知
+     */
     private EventDispatcher eventDispatcher;
 
+    /**
+     * HTTP请求代理类，完成API调用
+     */
     private NamingProxy serverProxy;
 
     public NacosNamingService(String serverList) {
@@ -83,8 +95,11 @@ public class NacosNamingService implements NamingService {
     }
 
     private void init(Properties properties) {
+        // 读取配置的namespace
         namespace = InitUtils.initNamespaceForNaming(properties);
+        // 初始化server地址（endpoint优先级更高）
         initServerAddr(properties);
+        // 初始化content
         InitUtils.initWebRootContext();
         initCacheDir();
         initLogName(properties);
@@ -115,6 +130,7 @@ public class NacosNamingService implements NamingService {
             UtilAndComs.DEFAULT_POLLING_THREAD_COUNT);
     }
 
+    // 是否启动时就读取磁盘文件
     private boolean isLoadCacheAtStart(Properties properties) {
         boolean loadCacheAtStart = false;
         if (properties != null && StringUtils.isNotEmpty(properties.getProperty(PropertyKeyConst.NAMING_LOAD_CACHE_AT_START))) {
@@ -287,6 +303,7 @@ public class NacosNamingService implements NamingService {
         if (subscribe) {
             serviceInfo = hostReactor.getServiceInfo(NamingUtils.getGroupedName(serviceName, groupName), StringUtils.join(clusters, ","));
         } else {
+            // 不查询本地缓存以及注册到server
             serviceInfo = hostReactor.getServiceInfoDirectlyFromServer(NamingUtils.getGroupedName(serviceName, groupName), StringUtils.join(clusters, ","));
         }
         List<Instance> list;
@@ -466,6 +483,10 @@ public class NacosNamingService implements NamingService {
         return serverProxy.serverHealthy() ? "UP" : "DOWN";
     }
 
+    /**
+     * 获取ServiceInfo的提供者
+     * @return
+     */
     private List<Instance> selectInstances(ServiceInfo serviceInfo, boolean healthy) {
         List<Instance> list;
         if (serviceInfo == null || CollectionUtils.isEmpty(list = serviceInfo.getHosts())) {
@@ -475,6 +496,7 @@ public class NacosNamingService implements NamingService {
         Iterator<Instance> iterator = list.iterator();
         while (iterator.hasNext()) {
             Instance instance = iterator.next();
+            // 筛选
             if (healthy != instance.isHealthy() || !instance.isEnabled() || instance.getWeight() <= 0) {
                 iterator.remove();
             }

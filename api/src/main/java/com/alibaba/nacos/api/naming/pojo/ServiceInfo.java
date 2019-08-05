@@ -41,6 +41,9 @@ public class ServiceInfo {
 
     private String clusters;
 
+    /**
+     * 缓存过期时间
+     */
     private long cacheMillis = 1000L;
 
     @JSONField(name = "hosts")

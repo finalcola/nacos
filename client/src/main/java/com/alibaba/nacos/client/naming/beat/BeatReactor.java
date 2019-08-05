@@ -89,7 +89,9 @@ public class BeatReactor {
             if (beatInfo.isStopped()) {
                 return;
             }
+            // 发送心跳
             long result = serverProxy.sendBeat(beatInfo);
+            // 调度下次心跳任务
             long nextTime = result > 0 ? result : beatInfo.getPeriod();
             executorService.schedule(new BeatTask(beatInfo), nextTime, TimeUnit.MILLISECONDS);
         }

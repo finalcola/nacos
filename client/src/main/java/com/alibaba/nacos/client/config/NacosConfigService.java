@@ -62,24 +62,32 @@ public class NacosConfigService implements ConfigService {
 
     /**
      * http agent
+     * HTTP请求代理类
      */
     private HttpAgent agent;
     /**
      * longpolling
+     * 长轮询任务，复制更新缓存以及快照文件
      */
     private ClientWorker worker;
     private String namespace;
     private String encode;
+    /**
+     * filter管理组件
+     */
     private ConfigFilterChainManager configFilterChainManager = new ConfigFilterChainManager();
 
     public NacosConfigService(Properties properties) throws NacosException {
         String encodeTmp = properties.getProperty(PropertyKeyConst.ENCODE);
+        // 默认使用UTF-8
         if (StringUtils.isBlank(encodeTmp)) {
             encode = Constants.ENCODE;
         } else {
             encode = encodeTmp.trim();
         }
+        // 初始化namespace
         initNamespace(properties);
+        // 创建HTTP请求发送组件
         agent = new MetricsHttpAgent(new ServerHttpAgent(properties));
         agent.start();
         worker = new ClientWorker(agent, configFilterChainManager, properties);
@@ -88,11 +96,13 @@ public class NacosConfigService implements ConfigService {
     private void initNamespace(Properties properties) {
         String namespaceTmp = null;
 
+        // 默认为true
         String isUseCloudNamespaceParsing =
             properties.getProperty(PropertyKeyConst.IS_USE_CLOUD_NAMESPACE_PARSING,
                 System.getProperty(SystemPropertyKeyConst.IS_USE_CLOUD_NAMESPACE_PARSING,
                     String.valueOf(Constants.DEFAULT_USE_CLOUD_NAMESPACE_PARSING)));
 
+        // 获取namespace配置
         if (Boolean.valueOf(isUseCloudNamespaceParsing)) {
             namespaceTmp = TemplateUtils.stringBlankAndThenExecute(namespaceTmp, new Callable<String>() {
                 @Override
@@ -149,6 +159,15 @@ public class NacosConfigService implements ConfigService {
         worker.removeTenantListener(dataId, group, listener);
     }
 
+    /**
+     * 获取groupKey对应内容（本地配置 > server > 快照文件）
+     * @param tenant
+     * @param dataId
+     * @param group
+     * @param timeoutMs
+     * @return
+     * @throws NacosException
+     */
     private String getConfigInner(String tenant, String dataId, String group, long timeoutMs) throws NacosException {
         group = null2defaultGroup(group);
         ParamUtils.checkKeyParam(dataId, group);
@@ -170,6 +189,7 @@ public class NacosConfigService implements ConfigService {
         }
 
         try {
+            // 请求server
             content = worker.getServerConfig(dataId, group, tenant, timeoutMs);
 
             cr.setContent(content);
@@ -186,6 +206,7 @@ public class NacosConfigService implements ConfigService {
                 agent.getName(), dataId, group, tenant, ioe.toString());
         }
 
+        // 读取快照文件
         LOGGER.warn("[{}] [get-config] get snapshot ok, dataId={}, group={}, tenant={}, config={}", agent.getName(),
             dataId, group, tenant, ContentUtils.truncateContent(content));
         content = LocalConfigInfoProcessor.getSnapshot(agent.getName(), dataId, group, tenant);
@@ -199,10 +220,14 @@ public class NacosConfigService implements ConfigService {
         return (null == group) ? Constants.DEFAULT_GROUP : group.trim();
     }
 
+    /**
+     * 删除server配置
+     */
     private boolean removeConfigInner(String tenant, String dataId, String group, String tag) throws NacosException {
         group = null2defaultGroup(group);
         ParamUtils.checkKeyParam(dataId, group);
         String url = Constants.CONFIG_CONTROLLER_PATH;
+        // 向server发送删除请求
         List<String> params = new ArrayList<String>();
         params.add("dataId");
         params.add(dataId);
@@ -238,6 +263,9 @@ public class NacosConfigService implements ConfigService {
         }
     }
 
+    /**
+     * 创建配置
+     */
     private boolean publishConfigInner(String tenant, String dataId, String group, String tag, String appName,
                                        String betaIps, String content) throws NacosException {
         group = null2defaultGroup(group);

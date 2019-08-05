@@ -121,9 +121,12 @@ public class ServerListManager {
 
     public ServerListManager(Properties properties) throws NacosException {
         isStarted = false;
+        // server地址
         serverAddrsStr = properties.getProperty(PropertyKeyConst.SERVER_ADDR);
         String namespace = properties.getProperty(PropertyKeyConst.NAMESPACE);
+        // 初始化参数
         initParam(properties);
+        // 根据配置的serverAddr创建server
         if (StringUtils.isNotEmpty(serverAddrsStr)) {
             isFixed = true;
             List<String> serverAddrs = new ArrayList<String>();
@@ -132,6 +135,7 @@ public class ServerListManager {
                 if (serverAddr.startsWith(HTTPS) || serverAddr.startsWith(HTTP)) {
                     serverAddrs.add(serverAddr);
                 } else {
+                    // 拼接地址
                     String[] serverAddrArr = serverAddr.split(":");
                     if (serverAddrArr.length == 1) {
                         serverAddrs.add(HTTP + serverAddrArr[0] + ":" + ParamUtil.getDefaultServerPort());
@@ -150,6 +154,7 @@ public class ServerListManager {
                     + namespace;
             }
         } else {
+            // 根据解析的endpoint构造地址
             if (StringUtils.isBlank(endpoint)) {
                 throw new NacosException(NacosException.CLIENT_INVALID_PARAM, "endpoint is blank");
             }
@@ -169,7 +174,9 @@ public class ServerListManager {
 
     }
 
+    // 初始化端口、contentPath、serverListName
     private void initParam(Properties properties) {
+        // 初始化端口等
         endpoint = initEndpoint(properties);
 
         String contentPathTmp = properties.getProperty(PropertyKeyConst.CONTEXT_PATH);
@@ -213,12 +220,15 @@ public class ServerListManager {
         return StringUtils.isNotBlank(endpointTmp) ? endpointTmp : "";
     }
 
+    // 启动后台循环任务
     public synchronized void start() throws NacosException {
 
+        // 已启动或者配置了server地址
         if (isStarted || isFixed) {
             return;
         }
 
+        // 启动后台任务，向addressServerUrl不断请求最新的server地址
         GetServerListTask getServersTask = new GetServerListTask(addressServerUrl);
         for (int i = 0; i < initServerlistRetryTimes && serverUrls.isEmpty(); ++i) {
             getServersTask.run();
@@ -229,6 +239,7 @@ public class ServerListManager {
             }
         }
 
+        // server地址为空，抛出异常
         if (serverUrls.isEmpty()) {
             LOGGER.error("[init-serverlist] fail to get NACOS-server serverlist! env: {}, url: {}", name,
                 addressServerUrl);
@@ -240,6 +251,7 @@ public class ServerListManager {
         isStarted = true;
     }
 
+    // 返回随机排序后的迭代器
     Iterator<String> iterator() {
         if (serverUrls.isEmpty()) {
             LOGGER.error("[{}] [iterator-serverlist] No server address defined!", name);
@@ -260,6 +272,7 @@ public class ServerListManager {
              * get serverlist from nameserver
              */
             try {
+                // 向url请求server地址列表，并更新
                 updateIfChanged(getApacheServerList(url, name));
             } catch (Exception e) {
                 LOGGER.error("[" + name + "][update-serverlist] failed to update serverlist from address server!",
@@ -268,6 +281,7 @@ public class ServerListManager {
         }
     }
 
+    // 更新列表
     private void updateIfChanged(List<String> newList) {
         if (null == newList || newList.isEmpty()) {
             LOGGER.warn("[update-serverlist] current serverlist from address server is empty!!!");
@@ -297,6 +311,7 @@ public class ServerListManager {
         LOGGER.info("[{}] [update-serverlist] serverlist updated to {}", name, serverUrls);
     }
 
+    // 从url读取server地址列表
     private List<String> getApacheServerList(String url, String name) {
         try {
             HttpResult httpResult = HttpSimpleClient.httpGet(url, null, null, null, 3000);
@@ -356,11 +371,13 @@ public class ServerListManager {
         return serverUrls.contains(ip);
     }
 
+    // 重新打乱地址
     public void refreshCurrentServerAddr() {
         iterator = iterator();
         currentServerAddr = iterator.next();
     }
 
+    // 获取当前使用的url（随机）
     public String getCurrentServerAddr() {
         if (StringUtils.isBlank(currentServerAddr)) {
             iterator = iterator();
@@ -432,6 +449,7 @@ public class ServerListManager {
  */
 class ServerAddressIterator implements Iterator<String> {
 
+    // 对地址进行随机排序
     static class RandomizedServerAddress implements Comparable<RandomizedServerAddress> {
         static Random random = new Random();
 
@@ -461,6 +479,7 @@ class ServerAddressIterator implements Iterator<String> {
         }
     }
 
+    // 返回列表随机排序后的迭代器
     public ServerAddressIterator(List<String> source) {
         sorted = new ArrayList<RandomizedServerAddress>();
         for (String address : source) {

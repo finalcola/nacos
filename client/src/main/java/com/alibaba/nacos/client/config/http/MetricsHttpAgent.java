@@ -25,6 +25,7 @@ import java.util.List;
 
 /**
  * MetricsHttpAgent
+ * 代理类，加入了性能分析功能
  *
  * @author Nacos
  */

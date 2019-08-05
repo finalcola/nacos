@@ -64,11 +64,14 @@ public class FailoverReactor {
 
     public void init() {
 
+        // failover-mode开关任务
         executorService.scheduleWithFixedDelay(new SwitchRefresher(), 0L, 5000L, TimeUnit.MILLISECONDS);
 
+        // 写入serviceInfo的任务
         executorService.scheduleWithFixedDelay(new DiskFileWriter(), 30, DAY_PERIOD_MINUTES, TimeUnit.MINUTES);
 
-        // backup file on startup if failover directory is empty.
+        // backup file on startup if failover directory is empty
+        // 如果启动时，failover目录为空，则执行一次写入进行备份
         executorService.schedule(new Runnable() {
             @Override
             public void run() {
@@ -125,6 +128,7 @@ public class FailoverReactor {
                             if ("1".equals(line1)) {
                                 switchParams.put("failover-mode", "true");
                                 NAMING_LOGGER.info("failover-mode is on");
+                                // 故障转移中，读取本地的缓存文件
                                 new FailoverFileReader().run();
                             } else if ("0".equals(line1)) {
                                 switchParams.put("failover-mode", "false");
@@ -173,6 +177,7 @@ public class FailoverReactor {
                     ServiceInfo dom = new ServiceInfo(file.getName());
 
                     try {
+                        // 读取文件内容
                         String dataString = ConcurrentDiskUtil.getFileContent(file,
                             Charset.defaultCharset().toString());
                         reader = new BufferedReader(new StringReader(dataString));
@@ -214,6 +219,7 @@ public class FailoverReactor {
     class DiskFileWriter extends TimerTask {
         @Override
         public void run() {
+            // 将serviceInfo写入磁盘
             Map<String, ServiceInfo> map = hostReactor.getServiceInfoMap();
             for (Map.Entry<String, ServiceInfo> entry : map.entrySet()) {
                 ServiceInfo serviceInfo = entry.getValue();

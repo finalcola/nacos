@@ -56,6 +56,7 @@ public class EventDispatcher {
         executor.execute(new Notifier());
     }
 
+    // 为服务添加listener
     public void addListener(ServiceInfo serviceInfo, String clusters, EventListener listener) {
 
         NAMING_LOGGER.info("[LISTENER] adding " + serviceInfo.getName() + " with " + clusters + " to listener map");
@@ -67,6 +68,7 @@ public class EventDispatcher {
             observers.add(listener);
         }
 
+        // 服务变更通知
         serviceChanged(serviceInfo);
     }
 
@@ -105,6 +107,9 @@ public class EventDispatcher {
         changedServices.add(serviceInfo);
     }
 
+    /**
+     * 处理服务变更通知listener
+     */
     private class Notifier implements Runnable {
         @Override
         public void run() {
@@ -119,6 +124,7 @@ public class EventDispatcher {
                     continue;
                 }
 
+                // 通知listener
                 try {
                     List<EventListener> listeners = observerMap.get(serviceInfo.getKey());
 

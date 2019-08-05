@@ -72,6 +72,7 @@ public class NamingProxy {
 
     public NamingProxy(String namespaceId, String endpoint, String serverList) {
 
+        // 设置server路径信息
         this.namespaceId = namespaceId;
         this.endpoint = endpoint;
         if (StringUtils.isNotEmpty(serverList)) {
@@ -81,9 +82,13 @@ public class NamingProxy {
             }
         }
 
+        // endpoint不为空，初始化刷新组件
         initRefreshSrvIfNeed();
     }
 
+    /**
+     * endpoint不为空，则启动刷新server列表线程
+     */
     private void initRefreshSrvIfNeed() {
         if (StringUtils.isEmpty(endpoint)) {
             return;
@@ -106,9 +111,14 @@ public class NamingProxy {
             }
         }, 0, vipSrvRefInterMillis, TimeUnit.MILLISECONDS);
 
+        // 刷新server列表
         refreshSrvIfNeed();
     }
 
+    /**
+     * 从endpoint读取server地址
+     * @return
+     */
     public List<String> getServerListFromEndpoint() {
 
         try {
@@ -141,6 +151,7 @@ public class NamingProxy {
     private void refreshSrvIfNeed() {
         try {
 
+            // 如果用户指定的serverList，则返回
             if (!CollectionUtils.isEmpty(serverList)) {
                 NAMING_LOGGER.debug("server list provided by user: " + serverList);
                 return;
@@ -150,6 +161,7 @@ public class NamingProxy {
                 return;
             }
 
+            // 从endpoint请求server列表
             List<String> list = getServerListFromEndpoint();
 
             if (CollectionUtils.isEmpty(list)) {
@@ -167,11 +179,15 @@ public class NamingProxy {
         }
     }
 
+    /**
+     * 注册instance
+     */
     public void registerService(String serviceName, String groupName, Instance instance) throws NacosException {
 
         NAMING_LOGGER.info("[REGISTER-SERVICE] {} registering service {} with instance: {}",
             namespaceId, serviceName, instance);
 
+        // 参数
         final Map<String, String> params = new HashMap<String, String>(9);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
@@ -185,10 +201,14 @@ public class NamingProxy {
         params.put("ephemeral", String.valueOf(instance.isEphemeral()));
         params.put("metadata", JSON.toJSONString(instance.getMetadata()));
 
+        // 发送请求
         reqAPI(UtilAndComs.NACOS_URL_INSTANCE, params, HttpMethod.POST);
 
     }
 
+    /**
+     * 注销instance
+     */
     public void deregisterService(String serviceName, Instance instance) throws NacosException {
 
         NAMING_LOGGER.info("[DEREGISTER-SERVICE] {} deregistering service {} with instance: {}",
@@ -318,6 +338,10 @@ public class NamingProxy {
         return 0L;
     }
 
+    /**
+     * 获取server健康情况
+     * @return
+     */
     public boolean serverHealthy() {
 
         try {
@@ -397,6 +421,7 @@ public class NamingProxy {
         checkSignature(params);
         List<String> headers = builderHeaders();
 
+        // 构造地址
         String url;
         if (curServer.startsWith(UtilAndComs.HTTPS) || curServer.startsWith(UtilAndComs.HTTP)) {
             url = curServer + api;
@@ -407,6 +432,7 @@ public class NamingProxy {
             url = HttpClient.getPrefix() + curServer + api;
         }
 
+        // 发送请求
         HttpClient.HttpResult result = HttpClient.request(url, headers, params, UtilAndComs.ENCODING, method);
         end = System.currentTimeMillis();
 
@@ -445,9 +471,11 @@ public class NamingProxy {
             Random random = new Random(System.currentTimeMillis());
             int index = random.nextInt(servers.size());
 
+            // 异常时会重试所有server
             for (int i = 0; i < servers.size(); i++) {
                 String server = servers.get(index);
                 try {
+                    // 调用server接口
                     return callServer(api, params, server, method);
                 } catch (NacosException e) {
                     exception = e;
@@ -498,6 +526,7 @@ public class NamingProxy {
         }
     }
 
+    // 创建header
     public List<String> builderHeaders() {
         List<String> headers = Arrays.asList("Client-Version", UtilAndComs.VERSION,
             "User-Agent", UtilAndComs.VERSION,

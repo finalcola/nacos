@@ -65,6 +65,7 @@ public class ClientWorker {
 
     public void addListeners(String dataId, String group, List<? extends Listener> listeners) {
         group = null2defaultGroup(group);
+        // 添加cacheData
         CacheData cache = addCacheDataIfAbsent(dataId, group);
         for (Listener listener : listeners) {
             cache.addListener(listener);
@@ -85,7 +86,9 @@ public class ClientWorker {
     public void addTenantListeners(String dataId, String group, List<? extends Listener> listeners) throws NacosException {
         group = null2defaultGroup(group);
         String tenant = agent.getTenant();
+        // 获取或创建cacheData
         CacheData cache = addCacheDataIfAbsent(dataId, group, tenant);
+        // 添加listener
         for (Listener listener : listeners) {
             cache.addListener(listener);
         }
@@ -144,6 +147,7 @@ public class ClientWorker {
         }
 
         String key = GroupKey.getKey(dataId, group);
+        // 新建cacheData
         cache = new CacheData(configFilterChainManager, agent.getName(), dataId, group);
 
         synchronized (cacheMap) {
@@ -176,6 +180,7 @@ public class ClientWorker {
         if (null != cache) {
             return cache;
         }
+        // 创建cacheData
         String key = GroupKey.getKeyTenant(dataId, group, tenant);
         synchronized (cacheMap) {
             CacheData cacheFromMap = getCache(dataId, group, tenant);
@@ -190,6 +195,7 @@ public class ClientWorker {
                 cache = new CacheData(configFilterChainManager, agent.getName(), dataId, group, tenant);
                 // fix issue # 1317
                 if (enableRemoteSyncConfig) {
+                    // 同步server配置
                     String content = getServerConfig(dataId, group, tenant, 3000L);
                     cache.setContent(content);
                 }
@@ -217,6 +223,7 @@ public class ClientWorker {
         return cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));
     }
 
+    // 根据groupKey获取server配置
     public String getServerConfig(String dataId, String group, String tenant, long readTimeout)
         throws NacosException {
         if (StringUtils.isBlank(group)) {
@@ -231,6 +238,7 @@ public class ClientWorker {
             } else {
                 params = Arrays.asList("dataId", dataId, "group", group, "tenant", tenant);
             }
+            // 请求groupKey对应数据
             result = agent.httpGet(Constants.CONFIG_CONTROLLER_PATH, null, params, agent.getEncode(), readTimeout);
         } catch (IOException e) {
             String message = String.format(
@@ -240,6 +248,7 @@ public class ClientWorker {
             throw new NacosException(NacosException.SERVER_ERROR, e);
         }
 
+        // 保存快照
         switch (result.code) {
             case HttpURLConnection.HTTP_OK:
                 LocalConfigInfoProcessor.saveSnapshot(agent.getName(), dataId, group, tenant, result.content);
@@ -272,12 +281,15 @@ public class ClientWorker {
         final String dataId = cacheData.dataId;
         final String group = cacheData.group;
         final String tenant = cacheData.tenant;
+        // 读取故障转移文件
         File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant);
 
         // 没有 -> 有
         if (!cacheData.isUseLocalConfigInfo() && path.exists()) {
+            // 读取故障转移文件内容
             String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
             String md5 = MD5.getInstance().getMD5String(content);
+            // cacheData使用本地缓存
             cacheData.setUseLocalConfigInfo(true);
             cacheData.setLocalConfigInfoVersion(path.lastModified());
             cacheData.setContent(content);
@@ -312,11 +324,13 @@ public class ClientWorker {
         return (null == group) ? Constants.DEFAULT_GROUP : group.trim();
     }
 
+    // 开启长轮询任务
     public void checkConfigInfo() {
         // 分任务
         int listenerSize = cacheMap.get().size();
         // 向上取整为批数
         int longingTaskCount = (int) Math.ceil(listenerSize / ParamUtil.getPerTaskConfigSize());
+        // 创建长轮询任务
         if (longingTaskCount > currentLongingTaskCount) {
             for (int i = (int) currentLongingTaskCount; i < longingTaskCount; i++) {
                 // 要判断任务是否在执行 这块需要好好想想。 任务列表现在是无序的。变化过程可能有问题
@@ -331,6 +345,7 @@ public class ClientWorker {
      */
     List<String> checkUpdateDataIds(List<CacheData> cacheDatas, List<String> inInitializingCacheList) throws IOException {
         StringBuilder sb = new StringBuilder();
+        // 根据groupData构造groupKey(dataId,group)
         for (CacheData cacheData : cacheDatas) {
             if (!cacheData.isUseLocalConfigInfo()) {
                 sb.append(cacheData.dataId).append(WORD_SEPARATOR);
@@ -349,6 +364,7 @@ public class ClientWorker {
             }
         }
         boolean isInitializingCacheList = !inInitializingCacheList.isEmpty();
+        // 向server请求groupData变更情况
         return checkUpdateConfigStr(sb.toString(), isInitializingCacheList);
     }
 
@@ -357,6 +373,7 @@ public class ClientWorker {
      */
     List<String> checkUpdateConfigStr(String probeUpdateString, boolean isInitializingCacheList) throws IOException {
 
+        // 构造参数
         List<String> params = Arrays.asList(Constants.PROBE_MODIFY_REQUEST, probeUpdateString);
 
         List<String> headers = new ArrayList<String>(2);
@@ -379,6 +396,7 @@ public class ClientWorker {
 
             if (HttpURLConnection.HTTP_OK == result.code) {
                 setHealthServer(true);
+                // 从HTTP响应拿到变化的groupKey
                 return parseUpdateDataIdResponse(result.content);
             } else {
                 setHealthServer(false);
@@ -435,9 +453,9 @@ public class ClientWorker {
         this.configFilterChainManager = configFilterChainManager;
 
         // Initialize the timeout parameter
-
         init(properties);
 
+        // 初始化work线程池
         executor = Executors.newScheduledThreadPool(1, new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -448,6 +466,7 @@ public class ClientWorker {
             }
         });
 
+        // 初始化长轮询线程池
         executorService = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(), new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -458,6 +477,7 @@ public class ClientWorker {
             }
         });
 
+        // 启动检查config的定时任务
         executor.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
@@ -470,6 +490,7 @@ public class ClientWorker {
         }, 1L, 10L, TimeUnit.MILLISECONDS);
     }
 
+    // 初始化参数
     private void init(Properties properties) {
 
         timeout = Math.max(NumberUtils.toInt(properties.getProperty(PropertyKeyConst.CONFIG_LONG_POLL_TIMEOUT),
@@ -480,6 +501,7 @@ public class ClientWorker {
         enableRemoteSyncConfig = Boolean.parseBoolean(properties.getProperty(PropertyKeyConst.ENABLE_REMOTE_SYNC_CONFIG));
     }
 
+    // 长轮询任务，请求groupKey(dataId,group)对应的内容，保存到快照文件和缓存
     class LongPollingRunnable implements Runnable {
         private int taskId;
 
@@ -498,8 +520,10 @@ public class ClientWorker {
                     if (cacheData.getTaskId() == taskId) {
                         cacheDatas.add(cacheData);
                         try {
+                            // 检查本地failover文件
                             checkLocalConfig(cacheData);
                             if (cacheData.isUseLocalConfigInfo()) {
+                                // 如果内容发生了修改，通知listener
                                 cacheData.checkListenerMd5();
                             }
                         } catch (Exception e) {
@@ -509,6 +533,7 @@ public class ClientWorker {
                 }
 
                 // check server config
+                // 从Server获取值变化了的DataID列表。返回的对象里只有dataId和group是有效的。
                 List<String> changedGroupKeys = checkUpdateDataIds(cacheDatas, inInitializingCacheList);
 
                 for (String groupKey : changedGroupKeys) {
@@ -520,7 +545,9 @@ public class ClientWorker {
                         tenant = key[2];
                     }
                     try {
+                        // 根据groupKey获取server配置，并保存到快照文件
                         String content = getServerConfig(dataId, group, tenant, 3000L);
+                        // 更新缓存
                         CacheData cache = cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));
                         cache.setContent(content);
                         LOGGER.info("[{}] [data-received] dataId={}, group={}, tenant={}, md5={}, content={}",
@@ -533,6 +560,7 @@ public class ClientWorker {
                         LOGGER.error(message, ioe);
                     }
                 }
+                // 通知listener
                 for (CacheData cacheData : cacheDatas) {
                     if (!cacheData.isInitializing() || inInitializingCacheList
                         .contains(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant))) {
@@ -542,10 +570,11 @@ public class ClientWorker {
                 }
                 inInitializingCacheList.clear();
 
+                // 继续执行
                 executorService.execute(this);
 
             } catch (Throwable e) {
-
+                // 出现异常，退避一段时间后继续调度
                 // If the rotation training task is abnormal, the next execution time of the task will be punished
                 LOGGER.error("longPolling error : ", e);
                 executorService.schedule(this, taskPenaltyTime, TimeUnit.MILLISECONDS);
@@ -570,10 +599,13 @@ public class ClientWorker {
     private final AtomicReference<Map<String, CacheData>> cacheMap = new AtomicReference<Map<String, CacheData>>(
         new HashMap<String, CacheData>());
 
+    // http代理
     private final HttpAgent agent;
+    // 管理filter
     private final ConfigFilterChainManager configFilterChainManager;
     private boolean isHealthServer = true;
     private long timeout;
+    // 当前长轮询任务数量
     private double currentLongingTaskCount = 0;
     private int taskPenaltyTime;
     private boolean enableRemoteSyncConfig = false;

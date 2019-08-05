@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 
 /**
  * Config Filter Chain Management
+ * filter管理组件
  *
  * @author Nacos
  */

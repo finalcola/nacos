@@ -78,6 +78,7 @@ public class PushReceiver implements Runnable {
                 PushPacket pushPacket = JSON.parseObject(json, PushPacket.class);
                 String ack;
                 if ("dom".equals(pushPacket.type) || "service".equals(pushPacket.type)) {
+                    // 处理接收的serviceInfo
                     hostReactor.processServiceJSON(pushPacket.data);
 
                     // send ack to server
@@ -98,6 +99,7 @@ public class PushReceiver implements Runnable {
                         + "\", \"data\":" + "\"\"}";
                 }
 
+                // 发送响应
                 udpSocket.send(new DatagramPacket(ack.getBytes(Charset.forName("UTF-8")),
                     ack.getBytes(Charset.forName("UTF-8")).length, packet.getSocketAddress()));
             } catch (Exception e) {
