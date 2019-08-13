@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * Basic methods for filter to use
+ * 通过反射，获取controller中url链接和方法的对应关心
  *
  * @author nkorange
  * @since 1.0.0
@@ -34,9 +35,12 @@ import java.util.concurrent.ConcurrentMap;
 @Component
 public class FilterBase {
 
-    private ConcurrentMap<String, Method> methodCache = new
+    private ConcurrentMap<String/*requestMethod-->urlPath*/, Method> methodCache = new
         ConcurrentHashMap<>();
 
+    /**
+     * 初始化Controller的http接口路径
+     */
     @PostConstruct
     public void init() {
         initClassMethod(InstanceController.class);

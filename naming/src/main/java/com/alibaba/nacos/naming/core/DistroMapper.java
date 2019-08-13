@@ -36,7 +36,8 @@ import java.util.List;
 @Component("distroMapper")
 public class DistroMapper implements ServerChangeListener {
 
-    private List<String> healthyList = new ArrayList<>();
+    // 当前健康机器地址列表（重复次数代表权重）
+    private List<String/*地址*/> healthyList = new ArrayList<>();
 
     public List<String> getHealthyList() {
         return healthyList;
@@ -45,29 +46,40 @@ public class DistroMapper implements ServerChangeListener {
     @Autowired
     private SwitchDomain switchDomain;
 
+    // 管理server列表
     @Autowired
     private ServerListManager serverListManager;
 
     /**
      * init server list
+     * 将当前对象作为listener，添加到
      */
     @PostConstruct
     public void init() {
         serverListManager.listen(this);
     }
 
+    /**
+     * 检查集群内的节点是否可响应
+     * @return
+     */
     public boolean responsible(Cluster cluster, Instance instance) {
-        return switchDomain.isHealthCheckEnabled(cluster.getServiceName())
-            && !cluster.getHealthCheckTask().isCancelled()
-            && responsible(cluster.getServiceName())
-            && cluster.contains(instance);
+        return switchDomain.isHealthCheckEnabled(cluster.getServiceName())/*开启了健康状况检查*/
+            && !cluster.getHealthCheckTask().isCancelled()/*检查任务未取消*/
+            && responsible(cluster.getServiceName())/*可由本地server响应服务*/
+            && cluster.contains(instance);/*实例在集群内仍存活*/
     }
 
+    /**
+     * 是否由本地server响应该服务
+     */
     public boolean responsible(String serviceName) {
+        // 开关关闭 或 单机模式
         if (!switchDomain.isDistroEnabled() || SystemUtils.STANDALONE_MODE) {
             return true;
         }
 
+        // 当前健康机器为空
         if (CollectionUtils.isEmpty(healthyList)) {
             // means distro config is not ready yet
             return false;
@@ -83,11 +95,18 @@ public class DistroMapper implements ServerChangeListener {
         return target >= index && target <= lastIndex;
     }
 
+    /**
+     * 根据service查找server地址
+     * @param serviceName
+     * @return
+     */
     public String mapSrv(String serviceName) {
+        // 如果健康节点为空那个 或 开关关闭，返回本地地址
         if (CollectionUtils.isEmpty(healthyList) || !switchDomain.isDistroEnabled()) {
             return NetUtils.localServer();
         }
 
+        // hash算法，获取一个节点
         try {
             return healthyList.get(distroHash(serviceName) % healthyList.size());
         } catch (Exception e) {
@@ -106,6 +125,10 @@ public class DistroMapper implements ServerChangeListener {
 
     }
 
+    /**
+     * 更新健康节点列表
+     * @param latestReachableMembers
+     */
     @Override
     public void onChangeHealthyServerList(List<Server> latestReachableMembers) {
 

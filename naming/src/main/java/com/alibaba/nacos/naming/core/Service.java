@@ -277,6 +277,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return allIPs;
     }
 
+    // 获取集群中所有的instance列表
     public List<Instance> allIPs(boolean ephemeral) {
         List<Instance> allIPs = new ArrayList<>();
         for (Map.Entry<String, Cluster> entry : clusterMap.entrySet()) {
@@ -300,6 +301,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return allIPs;
     }
 
+    // 获取service对应集群中的instance列表
     public List<Instance> srvIPs(List<String> clusters) {
         if (CollectionUtils.isEmpty(clusters)) {
             clusters = new ArrayList<>();

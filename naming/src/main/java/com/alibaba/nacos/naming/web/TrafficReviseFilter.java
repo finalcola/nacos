@@ -31,6 +31,7 @@ import java.util.Map;
 
 /**
  * Filter incoming traffic to refuse or revise unexpected requests
+ * 验证请求是否可以通过
  *
  * @author nkorange
  * @since 1.0.0
@@ -50,6 +51,7 @@ public class TrafficReviseFilter implements Filter {
         HttpServletResponse resp = (HttpServletResponse) response;
 
         // request limit if exist:
+        // 是否限制了url
         String urlString = req.getRequestURI() + "?" + req.getQueryString();
         Map<String, Integer> limitedUrlMap = switchDomain.getLimitedUrlMap();
 

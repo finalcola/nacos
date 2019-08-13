@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Data sync task dispatcher
+ * 分发数据同步任务
  *
  * @author nkorange
  * @since 1.0.0
@@ -41,11 +42,15 @@ public class TaskDispatcher {
     @Autowired
     private GlobalConfig partitionConfig;
 
+    /**
+     * 数据同步组件
+     */
     @Autowired
     private DataSyncer dataSyncer;
 
     private List<TaskScheduler> taskSchedulerList = new ArrayList<>();
 
+    // CPU个数
     private final int cpuCoreCount = Runtime.getRuntime().availableProcessors();
 
     @PostConstruct
@@ -65,8 +70,10 @@ public class TaskDispatcher {
 
         private int index;
 
+        // 当前需要同步的数据数量（用于批处理）
         private int dataSize = 0;
 
+        // 上次提交任务的时间（用于批处理）
         private long lastDispatchTime = 0L;
 
         private BlockingQueue<String> queue = new LinkedBlockingQueue<>(128 * 1024);
@@ -75,6 +82,7 @@ public class TaskDispatcher {
             this.index = index;
         }
 
+        // 添加任务
         public void addTask(String key) {
             queue.offer(key);
         }
@@ -98,6 +106,7 @@ public class TaskDispatcher {
                         Loggers.EPHEMERAL.debug("got key: {}", key);
                     }
 
+                    // server列表为空
                     if (dataSyncer.getServers() == null || dataSyncer.getServers().isEmpty()) {
                         continue;
                     }
@@ -113,9 +122,11 @@ public class TaskDispatcher {
                     keys.add(key);
                     dataSize++;
 
+                    // 批处理或超时
                     if (dataSize == partitionConfig.getBatchSyncKeyCount() ||
                         (System.currentTimeMillis() - lastDispatchTime) > partitionConfig.getTaskDispatchPeriod()) {
 
+                        // 提交任务：向其它server同步数据
                         for (Server member : dataSyncer.getServers()) {
                             if (NetUtils.localServer().equals(member.getKey())) {
                                 continue;

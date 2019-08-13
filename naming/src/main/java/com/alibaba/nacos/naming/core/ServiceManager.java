@@ -62,6 +62,9 @@ public class ServiceManager implements RecordListener<Service> {
 
     private LinkedBlockingDeque<ServiceKey> toBeUpdatedServicesQueue = new LinkedBlockingDeque<>(1024 * 1024);
 
+    /**
+     * 同步service状态信息
+     */
     private Synchronizer synchronizer = new ServiceStatusSynchronizer();
 
     private final Lock lock = new ReentrantLock();
@@ -477,6 +480,7 @@ public class ServiceManager implements RecordListener<Service> {
 
         String key = KeyBuilder.buildInstanceListKey(namespaceId, serviceName, ephemeral);
 
+        // 获取对应的service
         Service service = getService(namespaceId, serviceName);
 
         List<Instance> instanceList = substractIpAddresses(service, ephemeral, ips);
@@ -512,16 +516,19 @@ public class ServiceManager implements RecordListener<Service> {
 
     public List<Instance> updateIpAddresses(Service service, String action, boolean ephemeral, Instance... ips) throws NacosException {
 
+        // 读取Datum
         Datum datum = consistencyService.get(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), ephemeral));
 
         Map<String, Instance> oldInstanceMap = new HashMap<>(16);
+        // service集群中所有的instance
         List<Instance> currentIPs = service.allIPs(ephemeral);
-        Map<String, Instance> map = new ConcurrentHashMap<>(currentIPs.size());
+        Map<String/*ip:port*/, Instance> map = new ConcurrentHashMap<>(currentIPs.size());
 
         for (Instance instance : currentIPs) {
             map.put(instance.toIPAddr(), instance);
         }
         if (datum != null) {
+            // 返回datum中保存的instance列表
             oldInstanceMap = setValid(((Instances) datum.value).getInstanceList(), map);
         }
 
@@ -564,9 +571,11 @@ public class ServiceManager implements RecordListener<Service> {
 
     private Map<String, Instance> setValid(List<Instance> oldInstances, Map<String, Instance> map) {
 
-        Map<String, Instance> instanceMap = new HashMap<>(oldInstances.size());
+        // 存放返回结果
+        Map<String/*datumKey*/, Instance> instanceMap = new HashMap<>(oldInstances.size());
         for (Instance instance : oldInstances) {
             Instance instance1 = map.get(instance.toIPAddr());
+            // 更新健康状态和心跳时间
             if (instance1 != null) {
                 instance.setHealthy(instance1.isHealthy());
                 instance.setLastBeat(instance1.getLastBeat());

@@ -78,6 +78,7 @@ public class AuthChecker {
             serviceName = WebUtils.optional(req, "tag", "");
         }
 
+        // 查找service是否存在
         Service service = serviceManager.getService(namespaceId, serviceName);
 
         if (service == null) {
@@ -93,11 +94,12 @@ public class AuthChecker {
             throw new IllegalArgumentException("provide 'authInfo' or 'token' to access this service");
         }
 
-        // try valid token
+        // 验证token是否有效
         if ((service != null && StringUtils.equals(service.getToken(), token))) {
             return;
         }
 
+        // 白名单
         if (ArrayUtils.contains(TOKEN_WHITE_LIST, token)) {
             return;
         }
@@ -106,7 +108,7 @@ public class AuthChecker {
             return;
         }
 
-        // if token failed, try AuthInfo
+        // 如果验证token失败，验证AuthInfo
         AuthInfo authInfo = AuthInfo.fromString(auth, WebUtils.getAcceptEncoding(req));
         if (authInfo == null) {
             throw new IllegalAccessException("invalid token or malformed auth info");

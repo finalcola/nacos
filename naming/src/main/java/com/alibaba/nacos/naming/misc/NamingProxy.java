@@ -107,7 +107,9 @@ public class NamingProxy {
             + result.code + " msg: " + result.content);
     }
 
-
+    /**
+     * 向指定的server发送需要同步的数据
+     */
     public static boolean syncData(byte[] data, String curServer) throws Exception {
         try {
             Map<String, String> headers = new HashMap<>(128);

@@ -109,6 +109,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             inThread.setName("com.alibaba.nacos.naming.push.receiver");
             inThread.start();
 
+            // 定期运行Receiver
             executorService.scheduleWithFixedDelay(new Runnable() {
                 @Override
                 public void run() {
@@ -130,6 +131,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         this.applicationContext = applicationContext;
     }
 
+    // service发生更新
     @Override
     public void onApplicationEvent(ServiceChangeEvent event) {
         Service service = event.getService();
@@ -225,6 +227,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         addClient(client);
     }
 
+    // 添加client
     public static void addClient(PushClient client) {
         // client is stored by key 'serviceName' because notify event is driven by serviceName change
         String serviceKey = UtilsAndCommons.assembleFullServiceName(client.getNamespaceId(), client.getServiceName());
@@ -235,10 +238,13 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             clients = clientMap.get(serviceKey);
         }
 
+        // 验证client是否已经存在
         PushClient oldClient = clients.get(client.toString());
         if (oldClient != null) {
+            // 更新时间戳信息
             oldClient.refresh();
         } else {
+            // 添加client
             PushClient res = clients.putIfAbsent(client.toString(), client);
             if (res != null) {
                 Loggers.PUSH.warn("client: {} already associated with key {}", res.getAddrStr(), res.toString());
@@ -316,14 +322,18 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         this.applicationContext.publishEvent(new ServiceChangeEvent(this, service));
     }
 
+    // 是否可开启push服务
     public boolean canEnablePush(String agent) {
 
+        // 检查开关
         if (!switchDomain.isPushEnabled()) {
             return false;
         }
 
+        // 解析客户端语言类型和版本
         ClientInfo clientInfo = new ClientInfo(agent);
 
+        // 检查语言的版本
         if (ClientInfo.ClientType.JAVA == clientInfo.type
             && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushJavaVersion())) >= 0) {
             return true;
@@ -621,8 +631,10 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
                 try {
+                    // 接收数据
                     udpSocket.receive(packet);
 
+                    // 解码
                     String json = new String(packet.getData(), 0, packet.getLength(), Charset.forName("UTF-8")).trim();
                     AckPacket ackPacket = JSON.parseObject(json, AckPacket.class);
 
@@ -630,6 +642,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                     String ip = socketAddress.getAddress().getHostAddress();
                     int port = socketAddress.getPort();
 
+                    // 超时
                     if (System.nanoTime() - ackPacket.lastRefTime > ACK_TIMEOUT_NANOS) {
                         Loggers.PUSH.warn("ack takes too long from {} ack json: {}", packet.getSocketAddress(), json);
                     }
@@ -641,6 +654,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                             + ", ack json: " + json);
                     }
 
+                    // 花费时间
                     long pushCost = System.currentTimeMillis() - udpSendTimeMap.get(ackKey);
 
                     Loggers.PUSH.info("received ack: {} from: {}:, cost: {} ms, unacked: {}, total push: {}",

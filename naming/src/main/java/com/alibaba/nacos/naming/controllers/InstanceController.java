@@ -69,6 +69,7 @@ public class InstanceController {
     @Autowired
     private ServiceManager serviceManager;
 
+    // 查询service集群信息
     private DataSource pushDataSource = new DataSource() {
 
         @Override
@@ -76,6 +77,7 @@ public class InstanceController {
 
             JSONObject result = new JSONObject();
             try {
+                // 查询service集群信息
                 result = doSrvIPXT(client.getNamespaceId(), client.getServiceName(), client.getAgent(),
                     client.getClusters(), client.getSocketAddr().getAddress().getHostAddress(), 0, StringUtils.EMPTY,
                     false, StringUtils.EMPTY, StringUtils.EMPTY, false);
@@ -104,11 +106,13 @@ public class InstanceController {
     @CanDistro
     @RequestMapping(value = "", method = RequestMethod.DELETE)
     public String deregister(HttpServletRequest request) throws Exception {
+        // 解析请求中的参数,封装为instance
         Instance instance = getIPAddress(request);
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
             Constants.DEFAULT_NAMESPACE_ID);
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
 
+        // 如果instance所属的service为空，则需要直接返回
         Service service = serviceManager.getService(namespaceId, serviceName);
         if (service == null) {
             Loggers.SRV_LOG.warn("remove instance from non-exist service: {}", serviceName);
@@ -324,6 +328,7 @@ public class InstanceController {
         return instance;
     }
 
+    // 解析请求中的参数,封装为instance
     private Instance getIPAddress(HttpServletRequest request) {
 
         String ip = WebUtils.required(request, "ip");
@@ -358,19 +363,25 @@ public class InstanceController {
         return instance;
     }
 
+    // service不可用，抛出异常
     public void checkIfDisabled(Service service) throws Exception {
         if (!service.getEnabled()) {
             throw new Exception("service is disabled now.");
         }
     }
 
+    /**
+     * 查询service集群中instance的状态信息
+     */
     public JSONObject doSrvIPXT(String namespaceId, String serviceName, String agent, String clusters, String clientIP, int udpPort,
                                 String env, boolean isCheck, String app, String tid, boolean healthyOnly) throws Exception {
 
         ClientInfo clientInfo = new ClientInfo(agent);
         JSONObject result = new JSONObject();
+        // 获取对应的服务
         Service service = serviceManager.getService(namespaceId, serviceName);
 
+        // 返回空结果
         if (service == null) {
             if (Loggers.DEBUG_LOG.isDebugEnabled()) {
                 Loggers.DEBUG_LOG.debug("no instance to serve for service: " + serviceName);
@@ -380,13 +391,16 @@ public class InstanceController {
             return result;
         }
 
+        // service不可用，抛出异常
         checkIfDisabled(service);
 
         long cacheMillis = switchDomain.getDefaultCacheMillis();
 
         // now try to enable the push
         try {
+            // 传入的udp端口大于0 且 满足开启条件（开关和客户端语言、版本）
             if (udpPort > 0 && pushService.canEnablePush(agent)) {
+                // 添加client
                 pushService.addClient(namespaceId, serviceName,
                     clusters,
                     agent,
@@ -403,13 +417,16 @@ public class InstanceController {
 
         List<Instance> srvedIPs;
 
+        // 获取service对应的instance列表
         srvedIPs = service.srvIPs(Arrays.asList(StringUtils.split(clusters, ",")));
 
         // filter ips using selector:
+        // 通过selector过滤
         if (service.getSelector() != null && StringUtils.isNotBlank(clientIP)) {
             srvedIPs = service.getSelector().select(clientIP, srvedIPs);
         }
 
+        // 返回空结果
         if (CollectionUtils.isEmpty(srvedIPs)) {
 
             if (Loggers.DEBUG_LOG.isDebugEnabled()) {
@@ -435,6 +452,7 @@ public class InstanceController {
             return result;
         }
 
+        // 根据instance是否健康分组
         Map<Boolean, List<Instance>> ipMap = new HashMap<>(2);
         ipMap.put(Boolean.TRUE, new ArrayList<>());
         ipMap.put(Boolean.FALSE, new ArrayList<>());
@@ -449,6 +467,7 @@ public class InstanceController {
 
         double threshold = service.getProtectThreshold();
 
+        // 健康节点是否小于阈值
         if ((float) ipMap.get(Boolean.TRUE).size() / srvedIPs.size() <= threshold) {
 
             Loggers.SRV_LOG.warn("protect threshold reached, return all ips, service: {}", serviceName);
@@ -456,6 +475,7 @@ public class InstanceController {
                 result.put("reachProtectThreshold", true);
             }
 
+            // 开启保护，保存不健康的instance
             ipMap.get(Boolean.TRUE).addAll(ipMap.get(Boolean.FALSE));
             ipMap.get(Boolean.FALSE).clear();
         }
@@ -467,11 +487,13 @@ public class InstanceController {
             return new JSONObject();
         }
 
+        // 用于存放instance信息
         JSONArray hosts = new JSONArray();
 
         for (Map.Entry<Boolean, List<Instance>> entry : ipMap.entrySet()) {
             List<Instance> ips = entry.getValue();
 
+            // 只返回健康instance
             if (healthyOnly && !entry.getKey()) {
                 continue;
             }
@@ -489,6 +511,7 @@ public class InstanceController {
                 ipObj.put("port", instance.getPort());
                 // deprecated since nacos 1.0.0:
                 ipObj.put("valid", entry.getKey());
+                // 是否健康
                 ipObj.put("healthy", entry.getKey());
                 ipObj.put("marked", instance.isMarked());
                 ipObj.put("instanceId", instance.getInstanceId());
@@ -509,6 +532,7 @@ public class InstanceController {
             }
         }
 
+        // 返回结果
         result.put("hosts", hosts);
         if (clientInfo.type == ClientInfo.ClientType.JAVA &&
             clientInfo.version.compareTo(VersionUtil.parseVersion("1.0.0")) >= 0) {

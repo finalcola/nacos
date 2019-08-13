@@ -119,6 +119,11 @@ public class SystemUtils {
         return NACOS_HOME + File.separator + "conf" + File.separator + "cluster.conf";
     }
 
+    /**
+     * 读取配置文件里的server地址
+     * @return
+     * @throws IOException
+     */
     public static List<String> readClusterConf() throws IOException {
         List<String> instanceList = new ArrayList<String>();
         Reader reader = null;
@@ -128,6 +133,7 @@ public class SystemUtils {
                 StandardCharsets.UTF_8);
             List<String> lines = IoUtils.readLines(reader);
             String comment = "#";
+            // 读取文件内配置的地址
             for (String line : lines) {
                 String instance = line.trim();
                 if (instance.startsWith(comment)) {

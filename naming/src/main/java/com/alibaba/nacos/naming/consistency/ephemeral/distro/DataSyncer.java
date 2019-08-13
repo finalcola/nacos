@@ -36,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Data replicator
+ * 同步数据组价
  *
  * @author nkorange
  * @since 1.0.0
@@ -44,6 +45,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @DependsOn("serverListManager")
 public class DataSyncer {
 
+    /**
+     * 存储数据
+     */
     @Autowired
     private DataStore dataStore;
 
@@ -63,6 +67,7 @@ public class DataSyncer {
 
     @PostConstruct
     public void init() {
+        // 向其他server发送本地的时间戳、数据的crc信息
         startTimedSync();
     }
 
@@ -73,6 +78,7 @@ public class DataSyncer {
             Iterator<String> iterator = task.getKeys().iterator();
             while (iterator.hasNext()) {
                 String key = iterator.next();
+                // 删除重复的key
                 if (StringUtils.isNotBlank(taskMap.putIfAbsent(buildKey(key, task.getTargetServer()), key))) {
                     // associated key already exist:
                     if (Loggers.EPHEMERAL.isDebugEnabled()) {
@@ -104,6 +110,7 @@ public class DataSyncer {
                         Loggers.EPHEMERAL.debug("sync keys: {}", keys);
                     }
 
+                    // 批量获取需要同步的数据
                     Map<String, Datum> datumMap = dataStore.batchGet(keys);
 
                     if (datumMap == null || datumMap.isEmpty()) {
@@ -114,10 +121,13 @@ public class DataSyncer {
                         return;
                     }
 
+                    // 序列化数据
                     byte[] data = serializer.serialize(datumMap);
 
                     long timestamp = System.currentTimeMillis();
+                    // 同步数据
                     boolean success = NamingProxy.syncData(data, task.getTargetServer());
+                    // 如果同步失败，重试
                     if (!success) {
                         SyncTask syncTask = new SyncTask();
                         syncTask.setKeys(task.getKeys());
@@ -139,6 +149,10 @@ public class DataSyncer {
         }, delay);
     }
 
+    /**
+     * 重试任务
+     * @param syncTask
+     */
     public void retrySync(SyncTask syncTask) {
 
         Server server = new Server();
@@ -150,7 +164,7 @@ public class DataSyncer {
         }
 
         // TODO may choose other retry policy.
-        submit(syncTask, partitionConfig.getSyncRetryDelay());
+        submit(syncTask, partitionConfig.getSyncRetryDelay()/*退避一段时间重试*/);
     }
 
     public void startTimedSync() {
@@ -169,6 +183,7 @@ public class DataSyncer {
                 }
 
                 // send local timestamps to other servers:
+                // 向其他server发送本地的时间戳、数据的crc信息
                 Map<String, String> keyChecksums = new HashMap<>(64);
                 for (String key : dataStore.keys()) {
                     if (!distroMapper.responsible(KeyBuilder.getServiceName(key))) {

@@ -26,10 +26,12 @@ import java.util.Map;
 
 /**
  * Report local server status to other server
+ * 向其他server发送本地server状态
  *
  * @author nacos
  */
 public class ServerStatusSynchronizer implements Synchronizer {
+    // 向其它server发送当前节点状态
     @Override
     public void send(final String serverIP, Message msg) {
         if (StringUtils.isEmpty(serverIP)) {

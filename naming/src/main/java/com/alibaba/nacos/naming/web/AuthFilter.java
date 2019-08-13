@@ -30,6 +30,7 @@ import java.net.URI;
 import java.security.AccessControlException;
 
 /**
+ * 校验权限
  * @author nkorange
  */
 public class AuthFilter implements Filter {

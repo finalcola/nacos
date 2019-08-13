@@ -27,6 +27,7 @@ public class ClientInfo {
     public Version version = Version.unknownVersion();
     public ClientType type = ClientType.UNKNOWN;
 
+    // 解析客户端语言类型和版本
     public ClientInfo(String userAgent) {
         String versionStr = StringUtils.isEmpty(userAgent) ? StringUtils.EMPTY : userAgent;
 

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * 用于和其他server同步service状态信息
  * @author nacos
  */
 public class ServiceStatusSynchronizer implements Synchronizer {
@@ -49,6 +50,7 @@ public class ServiceStatusSynchronizer implements Synchronizer {
                     UtilsAndCommons.NACOS_NAMING_CONTEXT + "/service/status";
         }
 
+        // 发送本地节点中service状态信息
         try {
             HttpClient.asyncHttpPostLarge(url, null, JSON.toJSONString(params), new AsyncCompletionHandler() {
                 @Override
@@ -67,6 +69,7 @@ public class ServiceStatusSynchronizer implements Synchronizer {
 
     }
 
+    // 向远处节点请求key对应的service状态信息
     @Override
     public Message get(String serverIP, String key) {
         if(serverIP == null) {

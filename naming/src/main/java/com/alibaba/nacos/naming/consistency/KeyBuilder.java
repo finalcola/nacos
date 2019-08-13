@@ -118,6 +118,7 @@ public class KeyBuilder {
 
     public static String getNamespace(String key) {
 
+        // 开关的namespace为空
         if (matchSwitchKey(key)) {
             return StringUtils.EMPTY;
         }

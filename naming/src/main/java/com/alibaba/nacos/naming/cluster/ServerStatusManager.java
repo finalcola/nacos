@@ -44,6 +44,7 @@ public class ServerStatusManager {
 
     @PostConstruct
     public void init() {
+        // 开启server状态检查任务
         GlobalExecutor.registerServerStatusUpdater(new ServerStatusUpdater());
     }
 

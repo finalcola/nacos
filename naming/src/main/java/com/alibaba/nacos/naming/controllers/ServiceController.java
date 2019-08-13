@@ -65,6 +65,9 @@ public class ServiceController {
     @Autowired
     private SubscribeManager subscribeManager;
 
+    /**
+     * 创建service
+     */
     @RequestMapping(value = "", method = RequestMethod.POST)
     public String create(HttpServletRequest request) throws Exception {
 
@@ -72,7 +75,7 @@ public class ServiceController {
             Constants.DEFAULT_NAMESPACE_ID);
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
 
-
+        // service已经创建，抛出异常
         if (serviceManager.getService(namespaceId, serviceName) != null) {
             throw new IllegalArgumentException("specified service already exists, serviceName : " + serviceName);
         }
@@ -85,6 +88,7 @@ public class ServiceController {
             metadataMap = UtilsAndCommons.parseMetadata(metadata);
         }
 
+        // 创建service
         Service service = new Service(serviceName);
         service.setProtectThreshold(protectThreshold);
         service.setEnabled(true);
@@ -98,6 +102,7 @@ public class ServiceController {
         service.recalculateChecksum();
         service.validate();
 
+        // 创建
         serviceManager.addOrReplaceService(service);
 
         return "ok";

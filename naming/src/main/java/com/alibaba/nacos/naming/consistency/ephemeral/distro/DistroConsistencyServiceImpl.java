@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
+ * 分区一致性算法（类似于哈希一致性算法）
+ * 将数据分摊给集群内的节点，每个节点只负责响应一部分数据。
  * A consistency protocol algorithm called <b>Partition</b>
  * <p>
  * Use a distro algorithm to divide data into many blocks. Each Nacos server node takes
@@ -71,15 +73,27 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         }
     });
 
+    /**
+     * 负责数据分发
+     */
     @Autowired
     private DistroMapper distroMapper;
 
+    /**
+     * 数据存储
+     */
     @Autowired
     private DataStore dataStore;
 
+    /**
+     * 分发数据同步任务组件（批处理）
+     */
     @Autowired
     private TaskDispatcher taskDispatcher;
 
+    /**
+     * 用于集群间的数据同步
+     */
     @Autowired
     private DataSyncer dataSyncer;
 
@@ -97,6 +111,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     private boolean initialized = false;
 
+    /**
+     * 执行事件通知任务,通知下面的listener
+     */
     public volatile Notifier notifier = new Notifier();
 
     private Map<String, CopyOnWriteArrayList<RecordListener>> listeners = new ConcurrentHashMap<>();
@@ -109,6 +126,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             @Override
             public void run() {
                 try {
+                    // 全量同步节点(一个，如果存的话)的数据
                     load();
                 } catch (Exception e) {
                     Loggers.EPHEMERAL.error("load data failed.", e);
@@ -119,18 +137,25 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         executor.submit(notifier);
     }
 
+    /**
+     * 全量同步节点(一个，如果存的话)的数据
+     * @throws Exception
+     */
     public void load() throws Exception {
+        // 单机模式
         if (SystemUtils.STANDALONE_MODE) {
             initialized = true;
             return;
         }
         // size = 1 means only myself in the list, we need at least one another server alive:
+        // 只有当前节点，需要等待其他节点上线
         while (serverListManager.getHealthyServers().size() <= 1) {
             Thread.sleep(1000L);
             Loggers.EPHEMERAL.info("waiting server list init...");
         }
 
         for (Server server : serverListManager.getHealthyServers()) {
+            // 排除本地节点
             if (NetUtils.localServer().equals(server.getKey())) {
                 continue;
             }
@@ -138,6 +163,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 Loggers.EPHEMERAL.debug("sync from " + server);
             }
             // try sync data from remote server:
+            // 尝试与其他节点同步数据(只需要全量同步一个server)
             if (syncAllDataFromRemote(server)) {
                 initialized = true;
                 return;
@@ -148,6 +174,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
     @Override
     public void put(String key, Record value) throws NacosException {
         onPut(key, value);
+        // 异步方式将变更的数据同步给其他server
         taskDispatcher.addTask(key);
     }
 
@@ -163,6 +190,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     public void onPut(String key, Record value) {
 
+        // 临时节点，封装为Datum后存储到dataStore
         if (KeyBuilder.matchEphemeralInstanceListKey(key)) {
             Datum<Instances> datum = new Datum<>();
             datum.value = (Instances) value;
@@ -175,6 +203,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             return;
         }
 
+        // 添加修改事件
         notifier.addTask(key, ApplyAction.CHANGE);
     }
 
@@ -253,6 +282,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     }
 
+    // 全量同步节点数据
     public boolean syncAllDataFromRemote(Server server) {
 
         try {
@@ -265,13 +295,16 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         }
     }
 
+    // 解析同步的数据
     public void processData(byte[] data) throws Exception {
         if (data.length > 0) {
+            // 反序列化
             Map<String, Datum<Instances>> datumMap =
                 serializer.deserializeMap(data, Instances.class);
 
 
             for (Map.Entry<String, Datum<Instances>> entry : datumMap.entrySet()) {
+                // 保存数据
                 dataStore.put(entry.getKey(), entry.getValue());
 
                 if (!listeners.containsKey(entry.getKey())) {
@@ -294,6 +327,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 }
             }
 
+            // 调用listener的change方法
             for (Map.Entry<String, Datum<Instances>> entry : datumMap.entrySet()) {
 
                 if (!listeners.containsKey(entry.getKey())) {
@@ -347,14 +381,21 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         return initialized || !globalConfig.isDataWarmup();
     }
 
+    /**
+     * 通知listener变更
+     */
     public class Notifier implements Runnable {
 
+        /**
+         * 用于记录添加过的service change事件
+         */
         private ConcurrentHashMap<String, String> services = new ConcurrentHashMap<>(10 * 1024);
 
         private BlockingQueue<Pair> tasks = new LinkedBlockingQueue<Pair>(1024 * 1024);
 
         public void addTask(String datumKey, ApplyAction action) {
 
+            // 避免重复添加change事件
             if (services.containsKey(datumKey) && action == ApplyAction.CHANGE) {
                 return;
             }
@@ -372,6 +413,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         public void run() {
             Loggers.EPHEMERAL.info("distro notifier started");
 
+            // 拉取并执行队列中的任务，通知listener
             while (true) {
                 try {
 
@@ -384,14 +426,17 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                     String datumKey = (String) pair.getValue0();
                     ApplyAction action = (ApplyAction) pair.getValue1();
 
+                    // 删除标记
                     services.remove(datumKey);
 
                     int count = 0;
 
+                    // 不存在监听器，则跳过
                     if (!listeners.containsKey(datumKey)) {
                         continue;
                     }
 
+                    // 通知change事件或delete事件
                     for (RecordListener listener : listeners.get(datumKey)) {
 
                         count++;

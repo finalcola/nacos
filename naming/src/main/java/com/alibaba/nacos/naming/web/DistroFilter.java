@@ -38,6 +38,8 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * 拦截需要代理的请求，发送给服务对应的server（hash一致性）
+ * 将请求转发给负责该服务的节点处理
  * @author nacos
  */
 public class DistroFilter implements Filter {
@@ -77,6 +79,7 @@ public class DistroFilter implements Filter {
             if (StringUtils.isBlank(serviceName)) {
                 serviceName = req.getParameter("dom");
             }
+            // 获取conntroller对应的方法
             Method method = filterBase.getMethod(req.getMethod(), path);
 
             if (method == null) {
@@ -95,10 +98,12 @@ public class DistroFilter implements Filter {
             }
 
             // proxy request to other server if necessary:
+            // 不能由本地server响应，代理发送给其它server的请求
             if (method.isAnnotationPresent(CanDistro.class) && !distroMapper.responsible(groupedServiceName)) {
 
                 String userAgent = req.getHeader("User-Agent");
 
+                // 重定向请求不合法
                 if (StringUtils.isNotBlank(userAgent) && userAgent.contains(UtilsAndCommons.NACOS_SERVER_HEADER)) {
                     // This request is sent from peer server, should not be redirected again:
                     Loggers.SRV_LOG.error("receive invalid redirect request from peer {}", req.getRemoteAddr());
@@ -107,6 +112,7 @@ public class DistroFilter implements Filter {
                     return;
                 }
 
+                // 将请求发送给server
                 List<String> headerList = new ArrayList<>(16);
                 Enumeration<String> headers = req.getHeaderNames();
                 while (headers.hasMoreElements()) {
@@ -115,7 +121,7 @@ public class DistroFilter implements Filter {
                     headerList.add(req.getHeader(headerName));
                 }
                 HttpClient.HttpResult result =
-                    HttpClient.request("http://" + distroMapper.mapSrv(groupedServiceName) + urlString, headerList,
+                    HttpClient.request("http://" + distroMapper.mapSrv(groupedServiceName)/*获取服务的server地址*/ + urlString, headerList,
                         StringUtils.isBlank(req.getQueryString()) ? HttpClient.translateParameterMap(req.getParameterMap()) : new HashMap<>(2)
                         , PROXY_CONNECT_TIMEOUT, PROXY_READ_TIMEOUT, "UTF-8", req.getMethod());
 
@@ -129,6 +135,7 @@ public class DistroFilter implements Filter {
                 return;
             }
 
+            // 由当前server响应
             OverrideParameterRequestWrapper requestWrapper = OverrideParameterRequestWrapper.buildRequest(req);
             requestWrapper.addParameter(CommonParams.SERVICE_NAME, groupedServiceName);
             filterChain.doFilter(requestWrapper, resp);

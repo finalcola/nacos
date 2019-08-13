@@ -23,26 +23,33 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * raft集群中其他节点信息
  * @author nacos
  */
 public class RaftPeer {
 
+    // 地址信息
     public String ip;
 
+    // 投票信息
     public String voteFor;
 
+    // 版本号
     public AtomicLong term = new AtomicLong(0L);
 
     public volatile long leaderDueMs = RandomUtils.nextLong(0, GlobalExecutor.LEADER_TIMEOUT_MS);
 
     public volatile long heartbeatDueMs = RandomUtils.nextLong(0, GlobalExecutor.HEARTBEAT_INTERVAL_MS);
 
+    // raft协议中节点初始状态为FOLLOWER
     public State state = State.FOLLOWER;
 
+    // 重置leader到期时间
     public void resetLeaderDue() {
         leaderDueMs = GlobalExecutor.LEADER_TIMEOUT_MS + RandomUtils.nextLong(0, GlobalExecutor.RANDOM_MS);
     }
 
+    // 重置心跳时间
     public void resetHeartbeatDue() {
         heartbeatDueMs = GlobalExecutor.HEARTBEAT_INTERVAL_MS;
     }

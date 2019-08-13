@@ -36,9 +36,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class RaftConsistencyServiceImpl implements PersistentConsistencyService {
 
+    /**
+     * raft协议实现类
+     */
     @Autowired
     private RaftCore raftCore;
 
+    /**
+     * 管理集群节点信息
+     */
     @Autowired
     private RaftPeerSet peers;
 
@@ -59,6 +65,7 @@ public class RaftConsistencyServiceImpl implements PersistentConsistencyService 
     public void remove(String key) throws NacosException {
         try {
             if (KeyBuilder.matchInstanceListKey(key) && !raftCore.isLeader()) {
+                // 删除instance，不会进行校验
                 Datum datum = new Datum();
                 datum.key = key;
                 raftCore.onDelete(datum.key, peers.getLeader());
