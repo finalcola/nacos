@@ -108,6 +108,7 @@ public class HealthCheckCommon {
         }, 500, TimeUnit.MILLISECONDS);
     }
 
+    // 计算check所用RTT时间
     public void reEvaluateCheckRT(long checkRT, HealthCheckTask task, SwitchDomain.HealthParams params) {
         task.setCheckRTLast(checkRT);
 
@@ -210,6 +211,7 @@ public class HealthCheckCommon {
         Cluster cluster = task.getCluster();
         try {
             if (ip.isHealthy() || ip.isMockValid()) {
+                // 检查是否存活
                 if (distroMapper.responsible(cluster, ip)) {
                     ip.setHealthy(false);
                     ip.setMockValid(false);
@@ -217,6 +219,7 @@ public class HealthCheckCommon {
                     Service service = cluster.getService();
                     service.setLastModifiedMillis(System.currentTimeMillis());
 
+                    // 通知client服务状态变更
                     pushService.serviceChanged(service);
                     addResult(new HealthCheckResult(service.getName(), ip));
 

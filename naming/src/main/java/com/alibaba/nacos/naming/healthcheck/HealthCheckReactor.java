@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
+ * 调度健康检查的任务
  * @author nacos
  */
 public class HealthCheckReactor {

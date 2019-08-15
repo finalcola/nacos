@@ -62,7 +62,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
     private static volatile ConcurrentMap<String, Receiver.AckEntry> ackMap
         = new ConcurrentHashMap<String, Receiver.AckEntry>();
 
-    private static ConcurrentMap<String, ConcurrentMap<String, PushClient>> clientMap
+    private static ConcurrentMap<String/*namespaceId##serviceName*/, ConcurrentMap<String, PushClient>> clientMap
         = new ConcurrentHashMap<String, ConcurrentMap<String, PushClient>>();
 
     private static volatile ConcurrentHashMap<String, Long> udpSendTimeMap = new ConcurrentHashMap<String, Long>();
@@ -109,7 +109,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             inThread.setName("com.alibaba.nacos.naming.push.receiver");
             inThread.start();
 
-            // 定期运行Receiver
+            // 定期清理僵死的客户端
             executorService.scheduleWithFixedDelay(new Runnable() {
                 @Override
                 public void run() {
@@ -148,6 +148,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         return;
                     }
 
+                    // 缓存发送给client的data信息
                     Map<String, Object> cache = new HashMap<>(16);
                     long lastRefTime = System.nanoTime();
                     for (PushClient client : clients.values()) {
@@ -163,6 +164,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         String key = getPushCacheKey(serviceName, client.getIp(), client.getAgent());
                         byte[] compressData = null;
                         Map<String, Object> data = null;
+                        // 从缓存中获取
                         if (switchDomain.getDefaultPushCacheMillis() >= 20000 && cache.containsKey(key)) {
                             org.javatuples.Pair pair = (org.javatuples.Pair) cache.get(key);
                             compressData = (byte[]) (pair.getValue0());
@@ -171,10 +173,11 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                             Loggers.PUSH.debug("[PUSH-CACHE] cache hit: {}:{}", serviceName, client.getAddrStr());
                         }
 
+                        // 封装客户端信息和data
                         if (compressData != null) {
                             ackEntry = prepareAckEntry(client, compressData, data, lastRefTime);
                         } else {
-                            ackEntry = prepareAckEntry(client, prepareHostsData(client), lastRefTime);
+                            ackEntry = prepareAckEntry(client, prepareHostsData(client)/*获取pushDataSource中的data*/, lastRefTime);
                             if (ackEntry != null) {
                                 cache.put(key, new org.javatuples.Pair<>(ackEntry.origin.getData(), ackEntry.data));
                             }
@@ -266,6 +269,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         return clients;
     }
 
+    // 移除僵死客户端
     public static void removeClientIfZombie() {
 
         int size = 0;
@@ -273,6 +277,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             ConcurrentMap<String, PushClient> clientConcurrentMap = entry.getValue();
             for (Map.Entry<String, PushClient> entry1 : clientConcurrentMap.entrySet()) {
                 PushClient client = entry1.getValue();
+                // 上次响应时间大于限制（默认10s），则将客户端视为僵死
                 if (client.zombie()) {
                     clientConcurrentMap.remove(entry1.getKey());
                 }
@@ -285,6 +290,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
 
     }
 
+    // 将data和客户端地址信息封装为AckEntry
     private static Receiver.AckEntry prepareAckEntry(PushClient client, byte[] dataBytes, Map<String, Object> data,
                                                      long lastRefTime) {
         String key = getACKKey(client.getSocketAddr().getAddress().getHostAddress(),
@@ -415,6 +421,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             this.socketAddr = socketAddr;
         }
 
+        // 上次响应时间大于限制（默认10s），则将客户端视为僵死
         public boolean zombie() {
             return System.currentTimeMillis() - lastRefTime > switchDomain.getPushCacheMillis(serviceName);
         }
@@ -545,6 +552,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
 
         try {
             byte[] dataBytes = dataStr.getBytes(StandardCharsets.UTF_8);
+            // 压缩数据
             dataBytes = compressIfNecessary(dataBytes);
 
             DatagramPacket packet = new DatagramPacket(dataBytes, dataBytes.length, client.socketAddr);

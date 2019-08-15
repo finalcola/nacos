@@ -93,6 +93,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
     private Selector selector;
 
     public TcpSuperSenseProcessor() {
+        // 开启selector，并将当前对象提交到线程池
         try {
             selector = Selector.open();
 
@@ -105,12 +106,14 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
 
     @Override
     public void process(HealthCheckTask task) {
+        // 获取集群机器地址列表
         List<Instance> ips = task.getCluster().allIPs(false);
 
         if (CollectionUtils.isEmpty(ips)) {
             return;
         }
 
+        // 为每个机器添加任务
         for (Instance ip : ips) {
 
             if (ip.isMarked()) {
@@ -120,6 +123,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 continue;
             }
 
+            // 上一次的tcp check还未结束，跳过
             if (!ip.markChecking()) {
                 SRV_LOG.warn("tcp check started before last one finished, service: "
                     + task.getCluster().getService().getName() + ":"
@@ -131,6 +135,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 continue;
             }
 
+            // 添加调度任务
             Beat beat = new Beat(ip, task);
             taskQueue.add(beat);
             MetricsMonitor.getTcpHealthCheckMonitor().incrementAndGet();
@@ -138,6 +143,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
     }
 
     private void processTask() throws Exception {
+        // 收集任务后批量提交
         Collection<Callable<Void>> tasks = new LinkedList<>();
         do {
             Beat beat = taskQueue.poll(CONNECT_TIMEOUT_MS / 2, TimeUnit.MILLISECONDS);
@@ -145,9 +151,11 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 return;
             }
 
+            // 封装为TaskProcessor
             tasks.add(new TaskProcessor(beat));
         } while (taskQueue.size() > 0 && tasks.size() < NIO_THREAD_COUNT * 64);
 
+        // 批量将任务提交到线程池
         for (Future<?> f : NIO_EXECUTOR.invokeAll(tasks)) {
             f.get();
         }
@@ -157,13 +165,16 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
     public void run() {
         while (true) {
             try {
+                // 处理任务
                 processTask();
 
+                // 底层select
                 int readyCount = selector.selectNow();
                 if (readyCount <= 0) {
                     continue;
                 }
 
+                // 提交处理IO的任务
                 Iterator<SelectionKey> iter = selector.selectedKeys().iterator();
                 while (iter.hasNext()) {
                     SelectionKey key = iter.next();
@@ -271,6 +282,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         public void finishCheck(boolean success, boolean now, long rt, String msg) {
             ip.setCheckRT(System.currentTimeMillis() - startTime);
 
+            // check healthy结果
             if (success) {
                 healthCheckCommon.checkOK(ip, task, msg);
             } else {
@@ -282,7 +294,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
 
                 keyMap.remove(task.toString());
             }
-
+            // 计算check所用RTT时间
             healthCheckCommon.reEvaluateCheckRT(rt, task, switchDomain.getTcpHealthParams());
         }
 
@@ -319,6 +331,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         }
     }
 
+    // 检查连接是否在超时时间内完成
     private static class TimeOutTask implements Runnable {
         SelectionKey key;
 
@@ -329,18 +342,22 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         @Override
         public void run() {
             if (key != null && key.isValid()) {
+                // 获取attach的Beat
                 SocketChannel channel = (SocketChannel) key.channel();
                 Beat beat = (Beat) key.attachment();
 
+                // 如果已经连接，则返回
                 if (channel.isConnected()) {
                     return;
                 }
 
+                // 尝试完成连接
                 try {
                     channel.finishConnect();
                 } catch (Exception ignore) {
                 }
 
+                // tcp连接超时
                 try {
                     beat.finishCheck(false, false, beat.getTask().getCheckRTNormalized() * 2, "tcp:timeout");
                     key.cancel();
@@ -373,6 +390,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 Cluster cluster = beat.getTask().getCluster();
 
                 BeatKey beatKey = keyMap.get(beat.toString());
+                // 销毁之前创建的beatKey
                 if (beatKey != null && beatKey.key.isValid()) {
                     if (System.currentTimeMillis() - beatKey.birthTime < TCP_KEEP_ALIVE_MILLIS) {
                         instance.setBeingChecked(false);
@@ -383,6 +401,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                     beatKey.key.channel().close();
                 }
 
+                // 开启channel
                 channel = SocketChannel.open();
                 channel.configureBlocking(false);
                 // only by setting this can we make the socket close event asynchronous
@@ -391,19 +410,25 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 channel.socket().setKeepAlive(true);
                 channel.socket().setTcpNoDelay(true);
 
+                // 连接远程节点
                 int port = cluster.isUseIPPort4Check() ? instance.getPort() : cluster.getDefCkport();
                 channel.connect(new InetSocketAddress(instance.getIp(), port));
 
+                // 注册到selector
                 SelectionKey key
                     = channel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
+                // 将beat attach到SelectionKey
                 key.attach(beat);
                 keyMap.put(beat.toString(), new BeatKey(key));
 
+                // 设置开启时间
                 beat.setStartTime(System.currentTimeMillis());
 
+                // 提交连接超时检测任务（更新instance的健康状态和时间信息）
                 NIO_EXECUTOR.schedule(new TimeOutTask(key),
                     CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
+                // 异常
                 beat.finishCheck(false, false, switchDomain.getTcpHealthParams().getMax(), "tcp:error:" + e.getMessage());
 
                 if (channel != null) {

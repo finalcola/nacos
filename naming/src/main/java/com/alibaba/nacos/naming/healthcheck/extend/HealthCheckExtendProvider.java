@@ -40,12 +40,14 @@ public class HealthCheckExtendProvider implements BeanFactoryAware {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthCheckExtendProvider.class);
 
+    // 使用JDK的SPI机制加载HealthCheckProcessor
     private ServiceLoader<HealthCheckProcessor> processorLoader
         = ServiceLoader.load(HealthCheckProcessor.class);
 
     private ServiceLoader<AbstractHealthChecker> checkerLoader
         = ServiceLoader.load(AbstractHealthChecker.class);
 
+    // 用于注册Bean到Spring容器
     private SingletonBeanRegistry registry;
 
     public void init(){
@@ -65,6 +67,7 @@ public class HealthCheckExtendProvider implements BeanFactoryAware {
         processorType.addAll(origin);
         healthCheckerType.addAll(origin);
 
+        // 将processor作为单例注册到Spring容器中
         while(processorIt.hasNext()){
             HealthCheckProcessor processor = processorIt.next();
             String type = processor.getType();
@@ -75,6 +78,7 @@ public class HealthCheckExtendProvider implements BeanFactoryAware {
             registry.registerSingleton(lowerFirstChar(processor.getClass().getSimpleName()), processor);
         }
 
+        // 注册HealthChecker
         while(healthCheckerIt.hasNext()){
             AbstractHealthChecker checker = healthCheckerIt.next();
             String type = checker.getType();

@@ -255,6 +255,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
 
         HealthCheckReactor.scheduleCheck(clientBeatCheckTask);
 
+        // 调用cluster的init方法
         for (Map.Entry<String, Cluster> entry : clusterMap.entrySet()) {
             entry.getValue().setService(this);
             entry.getValue().init();

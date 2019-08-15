@@ -46,7 +46,7 @@ public class HealthCheckProcessorDelegate implements HealthCheckProcessor {
 
     @Override
     public void process(HealthCheckTask task) {
-
+        // 默认是TCP
         String type = task.getCluster().getHealthChecker().getType();
         HealthCheckProcessor processor = healthCheckProcessorMap.get(type);
         if(processor == null){
