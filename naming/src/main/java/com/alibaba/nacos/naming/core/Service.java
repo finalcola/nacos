@@ -54,6 +54,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
 
     private static final String SERVICE_NAME_SYNTAX = "[0-9a-zA-Z@\\.:_-]+";
 
+    // 检查、更新临时instance的健康状态，如果过期则移除
     @JSONField(serialize = false)
     private ClientBeatCheckTask clientBeatCheckTask = new ClientBeatCheckTask(this);
 
@@ -100,7 +101,9 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         this.ipDeleteTimeout = ipDeleteTimeout;
     }
 
+    // 处理client发送的心跳
     public void processClientBeat(final RsInfo rsInfo) {
+        // 添加处理任务（更新instance的心跳时间和健康情况）
         ClientBeatProcessor clientBeatProcessor = new ClientBeatProcessor();
         clientBeatProcessor.setService(this);
         clientBeatProcessor.setRsInfo(rsInfo);
@@ -252,7 +255,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
     }
 
     public void init() {
-
+        // 启动客户端心跳检查任务:检查、更新临时instance的健康状态，如果过期则移除
         HealthCheckReactor.scheduleCheck(clientBeatCheckTask);
 
         // 调用cluster的init方法
@@ -439,6 +442,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return checksum;
     }
 
+    // 重新计算校验码(对集群中的ip进行MD5加密)
     public synchronized void recalculateChecksum() {
         List<Instance> ips = allIPs();
 

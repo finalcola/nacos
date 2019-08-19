@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 /**
+ * 当服务发送变更时，通过UDP将最新的服务信息推送给客户端
  * @author nacos
  */
 @Component
@@ -164,16 +165,17 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         String key = getPushCacheKey(serviceName, client.getIp(), client.getAgent());
                         byte[] compressData = null;
                         Map<String, Object> data = null;
-                        // 从缓存中获取
+                        // 开关中配置的缓存过期时间大于20s，则尝试从缓存中获取
                         if (switchDomain.getDefaultPushCacheMillis() >= 20000 && cache.containsKey(key)) {
                             org.javatuples.Pair pair = (org.javatuples.Pair) cache.get(key);
+                            // 缓存数据包括压缩数据和原数据
                             compressData = (byte[]) (pair.getValue0());
                             data = (Map<String, Object>) pair.getValue1();
 
                             Loggers.PUSH.debug("[PUSH-CACHE] cache hit: {}:{}", serviceName, client.getAddrStr());
                         }
 
-                        // 封装客户端信息和data
+                        // 封装客户端信息和从pushDataSource中获取的数据（会进行压缩）
                         if (compressData != null) {
                             ackEntry = prepareAckEntry(client, compressData, data, lastRefTime);
                         } else {
@@ -186,6 +188,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}",
                             client.getServiceName(), client.getAddrStr(), client.getAgent(), (ackEntry == null ? null : ackEntry.key));
 
+                        // 通过udp发送数据给客户端
                         udpPush(ackEntry);
                     }
                 } catch (Exception e) {
@@ -230,7 +233,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         addClient(client);
     }
 
-    // 添加client
+    // 添加或刷新client
     public static void addClient(PushClient client) {
         // client is stored by key 'serviceName' because notify event is driven by serviceName change
         String serviceKey = UtilsAndCommons.assembleFullServiceName(client.getNamespaceId(), client.getServiceName());
@@ -570,14 +573,17 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         }
     }
 
+    // 将集群最新的集群信息推送给client
     private static Receiver.AckEntry udpPush(Receiver.AckEntry ackEntry) {
         if (ackEntry == null) {
             Loggers.PUSH.error("[NACOS-PUSH] ackEntry is null.");
             return null;
         }
 
+        // 默认可重试一次
         if (ackEntry.getRetryTimes() > MAX_RETRY_TIMES) {
             Loggers.PUSH.warn("max re-push times reached, retry times {}, key: {}", ackEntry.retryTimes, ackEntry.key);
+            // 删除任务
             ackMap.remove(ackEntry.key);
             udpSendTimeMap.remove(ackEntry.key);
             failedPush += 1;
@@ -585,17 +591,22 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         }
 
         try {
+            // push次数+1
             if (!ackMap.containsKey(ackEntry.key)) {
                 totalPush++;
             }
+            // 记录该任务
             ackMap.put(ackEntry.key, ackEntry);
             udpSendTimeMap.put(ackEntry.key, System.currentTimeMillis());
 
             Loggers.PUSH.info("send udp packet: " + ackEntry.key);
+            // 推送数据给client
             udpSocket.send(ackEntry.origin);
 
             ackEntry.increaseRetryTime();
 
+
+            // 添加超时后重新发送
             executorService.schedule(new Retransmitter(ackEntry), TimeUnit.NANOSECONDS.toMillis(ACK_TIMEOUT_NANOS),
                 TimeUnit.MILLISECONDS);
 
@@ -615,6 +626,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         return StringUtils.strip(host) + "," + port + "," + lastRefTime;
     }
 
+    // 用于超时后重新发送
     public static class Retransmitter implements Runnable {
         Receiver.AckEntry ackEntry;
 
@@ -624,6 +636,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
 
         @Override
         public void run() {
+            // 如果发送失败，则ackEntry依然保存在ackMap中，重试
             if (ackMap.containsKey(ackEntry.key)) {
                 Loggers.PUSH.info("retry to push data, key: " + ackEntry.key);
                 udpPush(ackEntry);

@@ -63,9 +63,15 @@ public class InstanceController {
     @Autowired
     private SwitchDomain switchDomain;
 
+    /**
+     * 将服务变更信息推送给client
+     */
     @Autowired
     private PushService pushService;
 
+    /**
+     * 管理service信息
+     */
     @Autowired
     private ServiceManager serviceManager;
 
@@ -112,18 +118,20 @@ public class InstanceController {
             Constants.DEFAULT_NAMESPACE_ID);
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
 
-        // 如果instance所属的service为空，则需要直接返回
+        // 如果instance所属的service为空，则直接返回
         Service service = serviceManager.getService(namespaceId, serviceName);
         if (service == null) {
             Loggers.SRV_LOG.warn("remove instance from non-exist service: {}", serviceName);
             return "ok";
         }
 
+        // 删除instance
         serviceManager.removeInstance(namespaceId, serviceName, instance.isEphemeral(), instance);
 
         return "ok";
     }
 
+    // 更新或注册instance
     @CanDistro
     @RequestMapping(value = "", method = RequestMethod.PUT)
     public String update(HttpServletRequest request) throws Exception {
@@ -137,6 +145,7 @@ public class InstanceController {
 
         ClientInfo clientInfo = new ClientInfo(agent);
 
+        // java客户端1.0.0后，支持更新功能
         if (clientInfo.type == ClientInfo.ClientType.JAVA &&
             clientInfo.version.compareTo(VersionUtil.parseVersion("1.0.0")) >= 0) {
             serviceManager.updateInstance(namespaceId, serviceName, parseInstance(request));
@@ -172,6 +181,7 @@ public class InstanceController {
         return doSrvIPXT(namespaceId, serviceName, agent, clusters, clientIP, udpPort, env, isCheck, app, tenant, healthyOnly);
     }
 
+    // 查询指定ip、port的instance信息
     @RequestMapping(value = "", method = RequestMethod.GET)
     public JSONObject detail(HttpServletRequest request) throws Exception {
 
@@ -224,6 +234,7 @@ public class InstanceController {
 
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
             Constants.DEFAULT_NAMESPACE_ID);
+        // 解析发送的心跳请求
         String beat = WebUtils.required(request, "beat");
         RsInfo clientBeat = JSON.parseObject(beat, RsInfo.class);
 
@@ -242,9 +253,11 @@ public class InstanceController {
             Loggers.DEBUG_LOG.debug("[CLIENT-BEAT] full arguments: beat: {}, serviceName: {}", clientBeat, serviceName);
         }
 
+        // 获取对应的instance
         Instance instance = serviceManager.getInstance(namespaceId, serviceName, clientBeat.getCluster(), clientBeat.getIp(),
             clientBeat.getPort());
 
+        // 如果未保存instane，执行注册逻辑
         if (instance == null) {
             instance = new Instance();
             instance.setPort(clientBeat.getPort());
@@ -259,18 +272,17 @@ public class InstanceController {
             serviceManager.registerInstance(namespaceId, serviceName, instance);
         }
 
+        // 获取对应的Service，处理客户端请求
         Service service = serviceManager.getService(namespaceId, serviceName);
-
         if (service == null) {
             throw new NacosException(NacosException.SERVER_ERROR, "service not found: " + serviceName + "@" + namespaceId);
         }
-
         service.processClientBeat(clientBeat);
         result.put("clientBeatInterval", instance.getInstanceHeartBeatInterval());
         return result;
     }
 
-
+    // 获取service所有集群中的instance健康情况
     @RequestMapping("/statuses")
     public JSONObject listWithHealthStatus(HttpServletRequest request) throws NacosException {
 
@@ -306,21 +318,25 @@ public class InstanceController {
         return result;
     }
 
+    // 解析req中的参数，封装为Instance
     private Instance parseInstance(HttpServletRequest request) throws Exception {
 
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
         String app = WebUtils.optional(request, "app", "DEFAULT");
         String metadata = WebUtils.optional(request, "metadata", StringUtils.EMPTY);
 
+        // 解析请求中的参数,封装为instance
         Instance instance = getIPAddress(request);
         instance.setApp(app);
         instance.setServiceName(serviceName);
         instance.setInstanceId(instance.generateInstanceId());
+        // 心跳时间
         instance.setLastBeat(System.currentTimeMillis());
         if (StringUtils.isNotEmpty(metadata)) {
             instance.setMetadata(UtilsAndCommons.parseMetadata(metadata));
         }
 
+        // 验证地址和权重是否合法
         if (!instance.validate()) {
             throw new NacosException(NacosException.INVALID_PARAM, "instance format invalid:" + instance);
         }
@@ -400,7 +416,7 @@ public class InstanceController {
         try {
             // 传入的udp端口大于0 且 满足开启条件（开关和客户端语言、版本）
             if (udpPort > 0 && pushService.canEnablePush(agent)) {
-                // 添加client
+                // 添加或刷新client
                 pushService.addClient(namespaceId, serviceName,
                     clusters,
                     agent,
@@ -426,7 +442,7 @@ public class InstanceController {
             srvedIPs = service.getSelector().select(clientIP, srvedIPs);
         }
 
-        // 返回空结果
+        // 结果为空
         if (CollectionUtils.isEmpty(srvedIPs)) {
 
             if (Loggers.DEBUG_LOG.isDebugEnabled()) {

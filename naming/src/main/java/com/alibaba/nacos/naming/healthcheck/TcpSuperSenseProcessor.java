@@ -104,6 +104,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         }
     }
 
+    // 处理心跳检测任务，会将任务添加到队列，等待调度
     @Override
     public void process(HealthCheckTask task) {
         // 获取集群机器地址列表
@@ -142,6 +143,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         }
     }
 
+    // 批量获取队列中的检查任务
     private void processTask() throws Exception {
         // 收集任务后批量提交
         Collection<Callable<Void>> tasks = new LinkedList<>();
@@ -151,7 +153,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 return;
             }
 
-            // 封装为TaskProcessor
+            // 封装为TaskProcessor(创建socket、连接，并添加连接超时检查任务)
             tasks.add(new TaskProcessor(beat));
         } while (taskQueue.size() > 0 && tasks.size() < NIO_THREAD_COUNT * 64);
 
@@ -200,15 +202,18 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
             Beat beat = (Beat) key.attachment();
             SocketChannel channel = (SocketChannel) key.channel();
             try {
+                // 检查心跳任务是否超时
                 if (!beat.isHealthy()) {
                     //invalid beat means this server is no longer responsible for the current service
                     key.cancel();
                     key.channel().close();
 
+                    // 标记该ip心跳检查完成
                     beat.finishCheck();
                     return;
                 }
 
+                // 确认连接
                 if (key.isValid() && key.isConnectable()) {
                     //connected
                     channel.finishConnect();

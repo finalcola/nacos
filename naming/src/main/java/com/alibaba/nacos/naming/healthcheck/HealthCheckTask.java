@@ -69,8 +69,10 @@ public class HealthCheckTask implements Runnable {
     public void run() {
 
         try {
+            // 有当前节点负责响应该服务且开启健康检查开关
             if (distroMapper.responsible(cluster.getService().getName()) &&
                 switchDomain.isHealthCheckEnabled(cluster.getService().getName())) {
+                // 委托给healthCheckProcessor处理
                 healthCheckProcessor.process(this);
                 if (Loggers.EVT_LOG.isDebugEnabled()) {
                     Loggers.EVT_LOG.debug("[HEALTH-CHECK] schedule health check task: {}", cluster.getService().getName());
@@ -81,6 +83,7 @@ public class HealthCheckTask implements Runnable {
                 cluster.getService().getName(), cluster.getName(), e);
         } finally {
             if (!cancelled) {
+                // 继续调度任务
                 HealthCheckReactor.scheduleCheck(this);
 
                 // worst == 0 means never checked
