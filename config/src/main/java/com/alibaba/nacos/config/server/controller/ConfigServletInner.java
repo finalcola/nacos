@@ -114,15 +114,18 @@ public class ConfigServletInner {
         final String groupKey = GroupKey2.getKey(dataId, group, tenant);
         String autoTag = request.getHeader("Vipserver-Tag");
         String requestIpApp = RequestUtil.getAppName(request);
+        // 尝试获取读锁
         int lockResult = tryConfigReadLock(request, response, groupKey);
 
         final String requestIp = RequestUtil.getRemoteIp(request);
         boolean isBeta = false;
+        // 加锁成功
         if (lockResult > 0) {
             FileInputStream fis = null;
             try {
                 String md5 = Constants.NULL;
                 long lastModified = 0L;
+                // 读取缓存
                 CacheItem cacheItem = ConfigService.getContentCache(groupKey);
                 if (cacheItem != null) {
                     if (cacheItem.isBeta()) {
@@ -155,8 +158,10 @@ public class ConfigServletInner {
                                 }
                             }
                             if (STANDALONE_MODE && !PropertyUtil.isStandaloneUseMysql()) {
+                                // 查询config_info_tag表
                                 configInfoBase = persistService.findConfigInfo4Tag(dataId, group, tenant, autoTag);
                             } else {
+                                // 服务端Tag缓存文件
                                 file = DiskUtil.targetTagFile(dataId, group, tenant, autoTag);
                             }
 

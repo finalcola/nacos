@@ -101,6 +101,7 @@ public class FailoverReactor {
         return startDT.getTime();
     }
 
+    // 检查是否开启failover
     class SwitchRefresher implements Runnable {
         long lastModifiedMillis = 0L;
 

@@ -201,7 +201,7 @@ public class NamingProxy {
         params.put("ephemeral", String.valueOf(instance.isEphemeral()));
         params.put("metadata", JSON.toJSONString(instance.getMetadata()));
 
-        // 发送请求
+        // 发送请求,创建instance
         reqAPI(UtilAndComs.NACOS_URL_INSTANCE, params, HttpMethod.POST);
 
     }
@@ -326,6 +326,7 @@ public class NamingProxy {
             params.put("beat", JSON.toJSONString(beatInfo));
             params.put(CommonParams.NAMESPACE_ID, namespaceId);
             params.put(CommonParams.SERVICE_NAME, beatInfo.getServiceName());
+            // 发送心跳请求，维持临时节点
             String result = reqAPI(UtilAndComs.NACOS_URL_BASE + "/instance/beat", params, HttpMethod.PUT);
             JSONObject jsonObject = JSON.parseObject(result);
 
@@ -400,6 +401,7 @@ public class NamingProxy {
         return reqAPI(api, params, snapshot);
     }
 
+    // 从server列表中选择一个server，发送请求
     public String reqAPI(String api, Map<String, String> params, String method) throws NacosException {
 
         List<String> snapshot = serversFromEndpoint;

@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadFactory;
 import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
+ * 接收server push信息的组件，并会将变更通知给相关listener
  * @author xuanyin
  */
 public class PushReceiver implements Runnable {
@@ -78,7 +79,7 @@ public class PushReceiver implements Runnable {
                 PushPacket pushPacket = JSON.parseObject(json, PushPacket.class);
                 String ack;
                 if ("dom".equals(pushPacket.type) || "service".equals(pushPacket.type)) {
-                    // 处理接收的serviceInfo
+                    // 处理接收的serviceInfo,通知服务变更
                     hostReactor.processServiceJSON(pushPacket.data);
 
                     // send ack to server

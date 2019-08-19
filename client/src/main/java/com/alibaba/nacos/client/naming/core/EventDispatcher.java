@@ -38,6 +38,7 @@ public class EventDispatcher {
 
     private BlockingQueue<ServiceInfo> changedServices = new LinkedBlockingQueue<ServiceInfo>();
 
+    // 服务观察者
     private ConcurrentMap<String, List<EventListener>> observerMap
         = new ConcurrentHashMap<String, List<EventListener>>();
 
@@ -56,7 +57,7 @@ public class EventDispatcher {
         executor.execute(new Notifier());
     }
 
-    // 为服务添加listener
+    // 为服务添加listener,监听服务instance变更
     public void addListener(ServiceInfo serviceInfo, String clusters, EventListener listener) {
 
         NAMING_LOGGER.info("[LISTENER] adding " + serviceInfo.getName() + " with " + clusters + " to listener map");
@@ -114,6 +115,7 @@ public class EventDispatcher {
         @Override
         public void run() {
             while (true) {
+                // 拉取变更的服务
                 ServiceInfo serviceInfo = null;
                 try {
                     serviceInfo = changedServices.poll(5, TimeUnit.MINUTES);

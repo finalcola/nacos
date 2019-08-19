@@ -59,12 +59,13 @@ public class NacosNamingService implements NamingService {
 
     private String serverList;
 
+    // 持久化serviceInfo的目录(默认为${user.home}/nacos/naming/)
     private String cacheDir;
 
     private String logName;
 
     /**
-     * 负责管理host变更
+     * 负责管理instance变更
      */
     private HostReactor hostReactor;
 
@@ -200,9 +201,11 @@ public class NacosNamingService implements NamingService {
         registerInstance(serviceName, Constants.DEFAULT_GROUP, instance);
     }
 
+    // 注册instance
     @Override
     public void registerInstance(String serviceName, String groupName, Instance instance) throws NacosException {
 
+        // 临时节点，需要创建心跳任务维持临时节点
         if (instance.isEphemeral()) {
             BeatInfo beatInfo = new BeatInfo();
             beatInfo.setServiceName(NamingUtils.getGroupedName(serviceName, groupName));
@@ -218,6 +221,7 @@ public class NacosNamingService implements NamingService {
             beatReactor.addBeatInfo(NamingUtils.getGroupedName(serviceName, groupName), beatInfo);
         }
 
+        // 注册instance
         serverProxy.registerService(NamingUtils.getGroupedName(serviceName, groupName), groupName, instance);
     }
 

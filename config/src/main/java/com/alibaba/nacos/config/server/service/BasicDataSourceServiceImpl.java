@@ -152,6 +152,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
                 throw new RuntimeException(DB_LOAD_ERROR_MSG);
             }
 
+            // 定时更新masterDB
             TimerTaskService.scheduleWithFixedDelay(new SelectMasterTask(), 10, 10,
                 TimeUnit.SECONDS);
             TimerTaskService.scheduleWithFixedDelay(new CheckDBHealthTask(), 10, 10,
@@ -334,7 +335,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             int index = -1;
             for (BasicDataSource ds : dataSourceList) {
                 index++;
-                //
+                // 更新dataSource
                 testMasterJT.setDataSource(ds);
                 testMasterJT.setQueryTimeout(queryTimeout);
                 try {
@@ -344,6 +345,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
                     if (jt.getDataSource() != ds) {
                         fatalLog.warn("[master-db] {}", ds.getUrl());
                     }
+                    // 更新masterDB
                     jt.setDataSource(ds);
                     tm.setDataSource(ds);
                     isFound = true;
@@ -373,9 +375,11 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             for (int i = 0; i < testJTList.size(); i++) {
                 JdbcTemplate jdbcTemplate = testJTList.get(i);
                 try {
+                    // 执行查询
                     jdbcTemplate.query(sql, CONFIG_INFO4BETA_ROW_MAPPER);
                     isHealthList.set(i, Boolean.TRUE);
                 } catch (DataAccessException e) {
+                    // 更新健康状况
                     if (i == masterIndex) {
                         fatalLog.error("[db-error] master db {} down.",
                             getIpFromUrl(dataSourceList.get(i).getUrl()));

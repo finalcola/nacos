@@ -76,8 +76,10 @@ public class ConfigService {
                         + "lastModifiedNew={}",
                     groupKey, md5, ConfigService.getLastModifiedTs(groupKey), lastModifiedTs);
             } else if (!STANDALONE_MODE || PropertyUtil.isStandaloneUseMysql()) {
+                // 写入文件
                 DiskUtil.saveToDisk(dataId, group, tenant, content);
             }
+            // 更新缓存的MD5
             updateMd5(groupKey, md5, lastModifiedTs);
             return true;
         } catch (IOException ioe) {
@@ -407,7 +409,9 @@ public class ConfigService {
     }
 
     public static void updateMd5(String groupKey, String md5, long lastModifiedTs) {
+        // 获取或创建 CacheItem
         CacheItem cache = makeSure(groupKey);
+        // md5发生了更新
         if (cache.md5 == null || !cache.md5.equals(md5)) {
             cache.md5 = md5;
             cache.lastModifiedTs = lastModifiedTs;
@@ -519,7 +523,9 @@ public class ConfigService {
         return StringUtils.equals(md5, serverMd5);
     }
 
+    // 比较MD5，是否发生了更新
     static public boolean isUptodate(String groupKey, String md5, String ip, String tag) {
+        // 获取CacheItem的MD5
         String serverMd5 = ConfigService.getContentMd5(groupKey, ip, tag);
         return StringUtils.equals(md5, serverMd5);
     }
@@ -532,6 +538,7 @@ public class ConfigService {
      */
     static public int tryReadLock(String groupKey) {
         CacheItem groupItem = CACHE.get(groupKey);
+        // 尝试加读锁
         int result = (null == groupItem) ? 0 : (groupItem.rwLock.tryReadLock() ? 1 : -1);
         if (result < 0) {
             defaultLog.warn("[read-lock] failed, {}, {}", result, groupKey);
@@ -568,6 +575,7 @@ public class ConfigService {
         }
     }
 
+    // 获取或创建 CacheItem
     static CacheItem makeSure(final String groupKey) {
         CacheItem item = CACHE.get(groupKey);
         if (null != item) {

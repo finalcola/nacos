@@ -114,7 +114,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
             return;
         }
 
-        // 为每个机器添加任务
+        // 为集群中的每个instance添加心跳检查任务
         for (Instance ip : ips) {
 
             if (ip.isMarked()) {

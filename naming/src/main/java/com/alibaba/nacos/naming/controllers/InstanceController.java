@@ -168,6 +168,7 @@ public class InstanceController {
         }
         String clusters = WebUtils.optional(request, "clusters", StringUtils.EMPTY);
         String clientIP = WebUtils.optional(request, "clientIP", StringUtils.EMPTY);
+        // 客户端的push监听端口（udp）
         Integer udpPort = Integer.parseInt(WebUtils.optional(request, "udpPort", "0"));
         String env = WebUtils.optional(request, "env", StringUtils.EMPTY);
         boolean isCheck = Boolean.parseBoolean(WebUtils.optional(request, "isCheck", "false"));
@@ -416,7 +417,7 @@ public class InstanceController {
         try {
             // 传入的udp端口大于0 且 满足开启条件（开关和客户端语言、版本）
             if (udpPort > 0 && pushService.canEnablePush(agent)) {
-                // 添加或刷新client
+                // 添加或刷新push client
                 pushService.addClient(namespaceId, serviceName,
                     clusters,
                     agent,

@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * 当服务发送变更时，通过UDP将最新的服务信息推送给客户端
+ * 当服务发送变更时，通过udp协议将最新的服务信息推送给客户端
  * @author nacos
  */
 @Component
@@ -101,8 +101,10 @@ public class PushService implements ApplicationContextAware, ApplicationListener
 
     static {
         try {
+            // 创建udpSocket
             udpSocket = new DatagramSocket();
 
+            // 开启Receiver后台线程，用于处理客户端响应
             Receiver receiver = new Receiver();
 
             Thread inThread = new Thread(receiver);
@@ -144,6 +146,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             public void run() {
                 try {
                     Loggers.PUSH.info(serviceName + " is changed, add it to push queue.");
+                    // 获取指定namespace、service的client
                     ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
                     if (MapUtils.isEmpty(clients)) {
                         return;
@@ -152,6 +155,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                     // 缓存发送给client的data信息
                     Map<String, Object> cache = new HashMap<>(16);
                     long lastRefTime = System.nanoTime();
+                    // 通过udp将最新的数据的发送个客户端
                     for (PushClient client : clients.values()) {
                         if (client.zombie()) {
                             Loggers.PUSH.debug("client is zombie: " + client.toString());
@@ -179,6 +183,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         if (compressData != null) {
                             ackEntry = prepareAckEntry(client, compressData, data, lastRefTime);
                         } else {
+                            // 读取pushDataSource的数据（Instance列表）,封装为AckEntry
                             ackEntry = prepareAckEntry(client, prepareHostsData(client)/*获取pushDataSource中的data*/, lastRefTime);
                             if (ackEntry != null) {
                                 cache.put(key, new org.javatuples.Pair<>(ackEntry.origin.getData(), ackEntry.data));
@@ -322,12 +327,14 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         return serviceName + UtilsAndCommons.CACHE_KEY_SPLITER + agent;
     }
 
+    // 通知服务变更事件
     public void serviceChanged(Service service) {
         // merge some change events to reduce the push frequency:
         if (futureMap.containsKey(UtilsAndCommons.assembleFullServiceName(service.getNamespaceId(), service.getName()))) {
             return;
         }
 
+        // 通知服务变更事件
         this.applicationContext.publishEvent(new ServiceChangeEvent(this, service));
     }
 

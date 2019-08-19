@@ -44,10 +44,13 @@ public class HostReactor {
 
     private Map<String, ServiceInfo> serviceInfoMap;
 
+    /**
+     * 标记serviceInfo正在更新
+     */
     private Map<String, Object> updatingMap;
 
     /**
-     * 处理server push的serverInfo
+     * 接收server push信息的组件，并会将变更通知给相关listener
      */
     private PushReceiver pushReceiver;
 
@@ -113,12 +116,15 @@ public class HostReactor {
     public ServiceInfo processServiceJSON(String json) {
         ServiceInfo serviceInfo = JSON.parseObject(json, ServiceInfo.class);
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
+        // 返回的数据错误
         if (serviceInfo.getHosts() == null || !serviceInfo.validate()) {
             //empty or error push, just ignore
             return oldService;
         }
 
         if (oldService != null) {
+            // 更新serviceInfo
+
             if (oldService.getLastRefTime() > serviceInfo.getLastRefTime()) {
                 NAMING_LOGGER.warn("out of date data received, old-t: " + oldService.getLastRefTime()
                     + ", new-t: " + serviceInfo.getLastRefTime());
@@ -190,7 +196,7 @@ public class HostReactor {
 
             serviceInfo.setJsonFromServer(json);
 
-            // 发送service更新通知，并写入磁盘
+            // 如果列表发生了修改，发送service更新通知，并写入磁盘
             if (newHosts.size() > 0 || remvHosts.size() > 0 || modHosts.size() > 0) {
                 eventDispatcher.serviceChanged(serviceInfo);
                 DiskCache.write(serviceInfo, cacheDir);
@@ -199,9 +205,12 @@ public class HostReactor {
         } else {
             NAMING_LOGGER.info("new ips(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getName() + " -> " + JSON
                 .toJSONString(serviceInfo.getHosts()));
+            // 新增的instance
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
+            // 通知服务变更
             eventDispatcher.serviceChanged(serviceInfo);
             serviceInfo.setJsonFromServer(json);
+            // 写入磁盘
             DiskCache.write(serviceInfo, cacheDir);
         }
 
@@ -251,7 +260,7 @@ public class HostReactor {
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
 
             updatingMap.put(serviceName, new Object());
-            // 更新serviceInfo信息
+            // 请求API，更新serviceInfo信息
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
 
@@ -269,7 +278,7 @@ public class HostReactor {
             }
         }
 
-        // 创建定时更新任务
+        // 提交定时更新任务（定时刷新serviceInfo）
         scheduleUpdateIfAbsent(serviceName, clusters);
 
         return serviceInfoMap.get(serviceObj.getKey());
@@ -285,7 +294,7 @@ public class HostReactor {
                 return;
             }
 
-            // 提交定时更新任务
+            // 提交定时更新任务（定时刷新serviceInfo）
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, clusters));
             futureMap.put(ServiceInfo.getKey(serviceName, clusters), future);
         }
@@ -294,7 +303,7 @@ public class HostReactor {
     public void updateServiceNow(String serviceName, String clusters) {
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
-            // 请求API
+            // 请求API,获取instance列表(会携带当前客户端的udpPort，用于接收push请求)
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUDPPort(), false);
             if (StringUtils.isNotEmpty(result)) {
                 // 解析返回结果
@@ -345,6 +354,7 @@ public class HostReactor {
                 }
 
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
+                    // 更新service列表
                     updateServiceNow(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
                 } else {
@@ -353,7 +363,7 @@ public class HostReactor {
                     refreshOnly(serviceName, clusters);
                 }
 
-                // 定时刷新本地serviceInfo
+                // 继续调度当前任务，定时刷新本地serviceInfo
                 executor.schedule(this, serviceObj.getCacheMillis(), TimeUnit.MILLISECONDS);
 
                 lastRefTime = serviceObj.getLastRefTime();

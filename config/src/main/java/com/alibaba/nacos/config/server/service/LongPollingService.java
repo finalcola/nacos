@@ -221,8 +221,10 @@ public class LongPollingService extends AbstractEventListener {
             // do nothing but set fix polling timeout
         } else {
             long start = System.currentTimeMillis();
+            // MD5发生了更新的groupKey
             List<String> changedGroups = MD5Util.compareMd5(req, rsp, clientMd5Map);
             if (changedGroups.size() > 0) {
+                // 发送响应
                 generateResponse(req, rsp, changedGroups);
                 LogUtil.clientLog.info("{}|{}|{}|{}|{}|{}|{}",
                     System.currentTimeMillis() - start, "instant", RequestUtil.getRemoteIp(req), "polling",
@@ -241,6 +243,7 @@ public class LongPollingService extends AbstractEventListener {
         // AsyncContext.setTimeout()的超时时间不准，所以只能自己控制
         asyncContext.setTimeout(0L);
 
+        // 调度长轮询任务
         scheduler.execute(
             new ClientLongPolling(asyncContext, clientMd5Map, ip, probeRequestSize, timeout, appName, tag));
     }

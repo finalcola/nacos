@@ -139,7 +139,7 @@ public class DiskUtil {
     }
 
     /**
-     * 返回服务端Tag缓存文件的路径
+     * 返回服务端Tag缓存文件
      */
     static public File targetTagFile(String dataId, String group, String tenant, String tag) {
         File file = null;

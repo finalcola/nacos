@@ -499,12 +499,15 @@ public class PersistService {
             @Override
             public Boolean doInTransaction(TransactionStatus status) {
                 try {
-                    //
+                    // 增加配置；数据库原子操作(config_info表)
                     long configId = addConfigInfoAtomic(srcIp, srcUser, configInfo, time, configAdvanceInfo);
-                    String configTags = configAdvanceInfo == null ? null : (String)configAdvanceInfo.get("config_tags");
+                    String configTags = configAdvanceInfo == null ? null : (String) configAdvanceInfo.get("config_tags");
+                    // 添加config与tag的关联关系（config_tags_relation表）
                     addConfiTagsRelationAtomic(configId, configTags, configInfo.getDataId(), configInfo.getGroup(),
                         configInfo.getTenant());
+                    // 添加日志表
                     insertConfigHistoryAtomic(0, configInfo, srcIp, srcUser, time, "I");
+                    // 发布配置修改事件
                     if (notify) {
                         EventDispatcher.fireEvent(
                             new ConfigDataChangeEvent(false, configInfo.getDataId(), configInfo.getGroup(),
@@ -580,6 +583,7 @@ public class PersistService {
             @Override
             public Boolean doInTransaction(TransactionStatus status) {
                 try {
+                    // 查询configInfo
                     ConfigInfo oldConfigInfo = findConfigInfo(configInfo.getDataId(), configInfo.getGroup(),
                         configInfo.getTenant());
                     String appNameTmp = oldConfigInfo.getAppName();
@@ -587,15 +591,19 @@ public class PersistService {
                     if (configInfo.getAppName() == null) {
                         configInfo.setAppName(appNameTmp);
                     }
+                    // 更新configInfo
                     updateConfigInfoAtomic(configInfo, srcIp, srcUser, time, configAdvanceInfo);
                     String configTags = configAdvanceInfo == null ? null : (String)configAdvanceInfo.get("config_tags");
                     if (configTags != null) {
                         // 删除所有tag，然后再重新创建
                         removeTagByIdAtomic(oldConfigInfo.getId());
+                        // 新建tag个configInfo的关联记录
                         addConfiTagsRelationAtomic(oldConfigInfo.getId(), configTags, configInfo.getDataId(),
                             configInfo.getGroup(), configInfo.getTenant());
                     }
+                    // 添加日志表
                     insertConfigHistoryAtomic(oldConfigInfo.getId(), oldConfigInfo, srcIp, srcUser, time, "U");
+                    // 发布事件通知
                     if (notify) {
                         EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, configInfo.getDataId(),
                             configInfo.getGroup(), configInfo.getTenant(), time.getTime()));
@@ -2652,6 +2660,7 @@ public class PersistService {
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
+        // 插入数据库
         final String sql
             = "INSERT INTO config_info(data_id,group_id,tenant_id,app_name,content,md5,src_ip,src_user,gmt_create,"
             + "gmt_modified,c_desc,c_use,effect,type,c_schema) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
@@ -2679,6 +2688,7 @@ public class PersistService {
                     return ps;
                 }
             }, keyHolder);
+            // 获取主键
             Number nu = keyHolder.getKey();
             if (nu == null) {
                 throw new IllegalArgumentException("insert config_info fail");
@@ -2912,10 +2922,13 @@ public class PersistService {
     public ConfigAllInfo findConfigAllInfo(final String dataId, final String group, final String tenant) {
         final String tenantTmp = StringUtils.isBlank(tenant) ? StringUtils.EMPTY : tenant;
         try {
+            // 查询tag（config_tags_relation表）
             List<String> configTagList = this.selectTagByConfig(dataId, group, tenant);
+            // 查询config_info表
             ConfigAllInfo configAdvance = this.jt.queryForObject(
                 "SELECT ID,data_id,group_id,tenant_id,app_name,content,md5,gmt_create,gmt_modified,src_user,src_ip,c_desc,c_use,effect,type,c_schema FROM config_info WHERE data_id=? AND group_id=? AND tenant_id=?",
                 new Object[] {dataId, group, tenantTmp}, CONFIG_ALL_INFO_ROW_MAPPER);
+            // 设置configTags
             if (configTagList != null && !configTagList.isEmpty()) {
                 StringBuilder configTagsTmp = new StringBuilder();
                 for (String configTag : configTagList) {

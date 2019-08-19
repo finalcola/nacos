@@ -42,6 +42,7 @@ public class DiskCache {
     public static void write(ServiceInfo dom, String dir) {
 
         try {
+            // 创建父文件夹
             makeSureCacheDirExists(dir);
 
 
@@ -55,6 +56,7 @@ public class DiskCache {
 
             StringBuilder keyContentBuffer = new StringBuilder("");
 
+            // 写入json
             String json = dom.getJsonFromServer();
 
             if (StringUtils.isEmpty(json)) {

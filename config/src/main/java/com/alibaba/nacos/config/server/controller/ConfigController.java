@@ -73,6 +73,7 @@ public class ConfigController {
 
     private final transient ConfigServletInner inner;
 
+    // 持久化配置
     private final transient PersistService persistService;
 
     private final transient ConfigSubService configSubService;
@@ -131,6 +132,7 @@ public class ConfigController {
         if (schema != null) {
             configAdvanceInfo.put("schema", schema);
         }
+        // 校验参数长度等
         ParamUtils.checkParam(configAdvanceInfo);
 
         if (AggrWhitelist.isAggrDataId(dataId)) {
@@ -141,16 +143,21 @@ public class ConfigController {
 
         final Timestamp time = TimeUtils.getCurrentTime();
         String betaIps = request.getHeader("betaIps");
+        // 封装为ConfigInfo
         ConfigInfo configInfo = new ConfigInfo(dataId, group, tenant, appName, content);
+        // 持久化后发布事件
         if (StringUtils.isBlank(betaIps)) {
             if (StringUtils.isBlank(tag)) {
+                // config_info表
                 persistService.insertOrUpdate(srcIp, srcUser, configInfo, time, configAdvanceInfo, false);
                 EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, dataId, group, tenant, time.getTime()));
             } else {
+                // config_info_tag
                 persistService.insertOrUpdateTag(configInfo, tag, srcIp, srcUser, time, false);
                 EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, dataId, group, tenant, tag, time.getTime()));
             }
         } else { // beta publish
+            // config_info_beta
             persistService.insertOrUpdateBeta(configInfo, betaIps, srcIp, srcUser, time, false);
             EventDispatcher.fireEvent(new ConfigDataChangeEvent(true, dataId, group, tenant, time.getTime()));
         }
@@ -215,6 +222,7 @@ public class ConfigController {
         ParamUtils.checkParam(dataId, group, "datumId", "rm");
         ParamUtils.checkParam(tag);
         String clientIp = RequestUtil.getRemoteIp(request);
+        // 删除数据库中的clientInfo
         if (StringUtils.isBlank(tag)) {
             persistService.removeConfigInfo(dataId, group, tenant, clientIp, null);
         } else {
@@ -223,6 +231,7 @@ public class ConfigController {
         final Timestamp time = TimeUtils.getCurrentTime();
         ConfigTraceService.logPersistenceEvent(dataId, group, tenant, null, time.getTime(), clientIp,
             ConfigTraceService.PERSISTENCE_EVENT_REMOVE, null);
+        // 发布更新事件
         EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, dataId, group, tenant, tag, time.getTime()));
         return true;
     }
@@ -234,6 +243,7 @@ public class ConfigController {
                                                               @RequestParam("group") String group,
                                                               @RequestParam(value = "tenant", required = false,
                                                                   defaultValue = StringUtils.EMPTY) String tenant) {
+        // 查询config_info表,结果使用RestResult封装
         RestResult<ConfigAdvanceInfo> rr = new RestResult<ConfigAdvanceInfo>();
         ConfigAdvanceInfo configInfo = persistService.findConfigAdvanceInfo(dataId, group, tenant);
         rr.setCode(200);
@@ -257,6 +267,7 @@ public class ConfigController {
 
         Map<String, String> clientMd5Map;
         try {
+            // 解析传输协议
             clientMd5Map = MD5Util.getClientMd5Map(probeModify);
         } catch (Throwable e) {
             throw new IllegalArgumentException("invalid probeModify");
@@ -279,6 +290,7 @@ public class ConfigController {
                                                     defaultValue = "1") int sampleTime)
         throws Exception {
         group = StringUtils.isBlank(group) ? Constants.DEFAULT_GROUP : group;
+        // 客户端信息取样
         SampleResult collectSampleResult = configSubService.getCollectSampleResult(dataId, group, tenant, sampleTime);
         GroupkeyListenserStatus gls = new GroupkeyListenserStatus();
         gls.setCollectStatus(200);

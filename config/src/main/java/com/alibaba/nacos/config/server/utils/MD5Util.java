@@ -131,6 +131,7 @@ public class MD5Util {
                     groupKey = SingletonRepository.DataIdGroupIdCache.getSingleton(groupKey);
                     md5Map.put(groupKey, endValue);
                 } else {
+                    // 新版本协议的最后以为是tenant（租户）
                     String groupKey = GroupKey2.getKey(tmpList.get(0), tmpList.get(1), endValue);
                     groupKey = SingletonRepository.DataIdGroupIdCache.getSingleton(groupKey);
                     md5Map.put(groupKey, tmpList.get(2));

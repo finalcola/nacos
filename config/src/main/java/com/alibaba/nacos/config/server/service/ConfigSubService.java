@@ -179,6 +179,7 @@ public class ConfigSubService {
                         .append(URLEncoder.encode(param.getValue(), Constants.ENCODE));
                 }
 
+                // 请求API
                 String urlAll = getUrl(ip, url) + "?" + paramUrl;
                 com.alibaba.nacos.config.server.service.notify.NotifyService.HttpResult result = NotifyService
                     .invokeURL(urlAll, null, Constants.ENCODE);
@@ -225,8 +226,10 @@ public class ConfigSubService {
 
         SampleResult sampleCollectResult = new SampleResult();
         for (int i = 0; i < sampleTime; i++) {
+            // 向其他server发送请求，获取listener状态
             List<SampleResult> sampleResults = runCollectionJob(url, params, completionService, resultList);
             if (sampleResults != null) {
+                // 合并结果
                 sampleCollectResult = mergeSampleResult(sampleCollectResult, sampleResults);
             }
         }

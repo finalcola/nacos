@@ -390,6 +390,7 @@ public class ServiceManager implements RecordListener<Service> {
         consistencyService.put(KeyBuilder.buildServiceMetaKey(service.getNamespaceId(), service.getName()), service);
     }
 
+    // 创建初始状态的Service数据结构
     public void createEmptyService(String namespaceId, String serviceName, boolean local/*isEphemeral*/) throws NacosException {
         createServiceIfAbsent(namespaceId, serviceName, local, null);
     }
@@ -439,7 +440,7 @@ public class ServiceManager implements RecordListener<Service> {
      * @throws Exception any error occurred in the process
      */
     public void registerInstance(String namespaceId, String serviceName, Instance instance) throws NacosException {
-
+        // 如果service不存在，创建空service
         createEmptyService(namespaceId, serviceName, instance.isEphemeral());
 
         Service service = getService(namespaceId, serviceName);
@@ -449,6 +450,7 @@ public class ServiceManager implements RecordListener<Service> {
                 "service not found, namespace: " + namespaceId + ", service: " + serviceName);
         }
 
+        // 添加instance
         addInstance(namespaceId, serviceName, instance.isEphemeral(), instance);
     }
 
