@@ -30,7 +30,7 @@ public class SampleResult implements Serializable {
      */
     private static final long serialVersionUID = 2587823382317389453L;
 
-    private Map<String, String> lisentersGroupkeyStatus;
+    private Map<String/*ip*/, String> lisentersGroupkeyStatus;
 
     public Map<String, String> getLisentersGroupkeyStatus() {
         return lisentersGroupkeyStatus;

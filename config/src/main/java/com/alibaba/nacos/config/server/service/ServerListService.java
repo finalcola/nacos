@@ -442,8 +442,10 @@ public class ServerListService implements ApplicationListener<WebServerInitializ
     private int maxFailCount = 12;
     private static volatile List<String> serverList = new ArrayList<String>();
     private static volatile List<String> serverListUnhealth = new ArrayList<String>();
+    // addressServer健康（动态获取serverList的节点）
     private static volatile boolean isAddressServerHealth = true;
     private static volatile int addressServerFailCcount = 0;
+    // 当前节点存在于集群节点列表中
     private static volatile boolean isInIpList = true;
 
     /**

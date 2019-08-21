@@ -58,6 +58,7 @@ public class OpsController {
     @ResponseBody
     public String updateLocalCacheFromStore(HttpServletRequest request, HttpServletResponse respons) {
         log.info("start to dump all data from store.");
+        // 全量转储数据库
         dumpService.dumpAll();
         log.info("finish to dump all data from store.");
         return HttpServletResponse.SC_OK + "";

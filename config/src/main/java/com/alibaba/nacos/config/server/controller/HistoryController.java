@@ -60,6 +60,7 @@ public class HistoryController {
         pageSize = null == pageSize ? Integer.valueOf(100) : pageSize;
         pageSize = pageSize > 500 ? Integer.valueOf(500) : pageSize;
         // configInfoBase没有appName字段
+        // 查询his_config_info表
         return persistService.findConfigHistory(dataId, group, tenant, pageNo, pageSize);
     }
 

@@ -58,21 +58,27 @@ public class HealthController {
         // TODO UP DOWN WARN
         StringBuilder sb = new StringBuilder();
         String dbStatus = dataSourceService.getHealth();
+
         if (dbStatus.contains(heathUpStr) && ServerListService.isAddressServerHealth() && ServerListService
             .isInIpList()) {
+            // db、addressServer处于健康状态，且当前节点与集群连接正常
             sb.append(heathUpStr);
         } else if (dbStatus.contains(heathWarnStr) && ServerListService.isAddressServerHealth() && ServerListService
             .isInIpList()) {
+            // db从节点异常
             sb.append("WARN:");
             sb.append("slave db (").append(dbStatus.split(":")[1]).append(") down. ");
         } else {
             sb.append("DOWN:");
+            // db主节点宕机
             if (dbStatus.contains(heathDownStr)) {
                 sb.append("master db (").append(dbStatus.split(":")[1]).append(") down. ");
             }
+            // addressServer宕机
             if (!ServerListService.isAddressServerHealth()) {
                 sb.append("address server down. ");
             }
+            // 当前节点不在集群列表
             if (!ServerListService.isInIpList()) {
                 sb.append("server ip ").append(LOCAL_IP).append(" is not in the serverList of address server. ");
             }

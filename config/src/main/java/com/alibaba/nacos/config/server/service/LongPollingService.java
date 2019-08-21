@@ -75,6 +75,7 @@ public class LongPollingService extends AbstractEventListener {
         return record.clientMd5Map;
     }
 
+    // 获取订阅指定配置的客户端信息
     public SampleResult getSubscribleInfo(String dataId, String group, String tenant) {
         String groupKey = GroupKey.getKeyTenant(dataId, group, tenant);
         SampleResult sampleResult = new SampleResult();
@@ -93,6 +94,7 @@ public class LongPollingService extends AbstractEventListener {
         SampleResult sampleResult = new SampleResult();
         Map<String, String> lisentersGroupkeyStatus = new HashMap<String, String>(50);
 
+        // 查询监听指定ip的客户端列表
         for (ClientLongPolling clientLongPolling : allSubs) {
             if (clientLongPolling.ip.equals(clientIp)) {
                 // 一个ip可能有多个监听
@@ -146,6 +148,7 @@ public class LongPollingService extends AbstractEventListener {
         return app2Groupkeys;
     }
 
+    // 获取订阅指定配置的客户端信息
     public SampleResult getCollectSubscribleInfo(String dataId, String group, String tenant) {
         List<SampleResult> sampleResultLst = new ArrayList<SampleResult>(50);
         for (int i = 0; i < SAMPLE_TIMES; i++) {
@@ -166,10 +169,13 @@ public class LongPollingService extends AbstractEventListener {
         return sampleResult;
     }
 
+    // 获取监听指定ip的客户端列表
     public SampleResult getCollectSubscribleInfoByIp(String ip) {
         SampleResult sampleResult = new SampleResult();
         sampleResult.setLisentersGroupkeyStatus(new HashMap<String, String>(50));
+        // 多次取样(3次)
         for (int i = 0; i < SAMPLE_TIMES; i++) {
+            // 查询监听指定ip的客户端列表
             SampleResult sampleTmp = getSubscribleInfoByIp(ip);
             if (sampleTmp != null) {
                 if (sampleTmp.getLisentersGroupkeyStatus() != null

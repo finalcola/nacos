@@ -80,7 +80,7 @@ public class CommunicationController {
     }
 
     /**
-     * 在本台机器上获得订阅改配置的客户端信息
+     * 在本台机器上获得订阅该配置的客户端信息
      */
     @RequestMapping(value = "/configWatchers", method = RequestMethod.GET)
     @ResponseBody
