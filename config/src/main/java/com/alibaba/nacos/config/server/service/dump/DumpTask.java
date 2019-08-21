@@ -270,7 +270,7 @@ class DumpAllProcessor implements TaskProcessor {
                         SwitchService.load(cf.getContent());
                     }
 
-                    // 普通属性,保存到磁盘
+                    // 普通属性,更新cacheData和文件
                     boolean result = ConfigService.dump(cf.getDataId(), cf.getGroup(), cf.getTenant(), cf.getContent(),
                         cf.getLastModified());
 
@@ -392,6 +392,7 @@ class DumpChangeProcessor implements TaskProcessor {
         for (ConfigInfoWrapper config : updateMd5List) {
             final String groupKey = GroupKey2.getKey(config.getDataId(),
                 config.getGroup());
+            // 更新cacheData时间戳和md5
             ConfigService.updateMd5(groupKey, config.getMd5(),
                 config.getLastModified());
         }
@@ -406,7 +407,7 @@ class DumpChangeProcessor implements TaskProcessor {
         List<ConfigInfo> configDeleted = persistService.findDeletedConfig(
             startTime, endTime);
         LogUtil.defaultLog.warn("deletedConfig count:{}", configDeleted.size());
-        // 删除对应的cacheData
+        // 删除对应的cacheData和磁盘文件
         for (ConfigInfo configInfo : configDeleted) {
             if (persistService.findConfigInfo(configInfo.getDataId(), configInfo.getGroup(),
                 configInfo.getTenant()) == null) {

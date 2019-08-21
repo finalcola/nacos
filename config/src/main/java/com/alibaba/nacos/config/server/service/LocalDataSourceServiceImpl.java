@@ -46,6 +46,7 @@ import static com.alibaba.nacos.core.utils.SystemUtils.STANDALONE_MODE;
 
 /**
  * local data source
+ * 默认的本地内存数据库（derby）
  *
  * @author Nacos
  */
@@ -67,6 +68,7 @@ public class LocalDataSourceServiceImpl implements DataSourceService {
 
     @PostConstruct
     public void init() {
+        // 创建derby数据库
         BasicDataSource ds = new BasicDataSource();
         ds.setDriverClassName(JDBC_DRIVER_NAME);
         ds.setUrl("jdbc:derby:" + NACOS_HOME + File.separator + DERBY_BASE_DIR + ";create=true");
@@ -90,6 +92,7 @@ public class LocalDataSourceServiceImpl implements DataSourceService {
         tm.setDataSource(ds);
         tjt.setTimeout(5000);
 
+        // 加载数据库初始化文件（META-INF/schema.sql）
         if (STANDALONE_MODE && !propertyUtil.isStandaloneUseMysql()) {
             reload();
         }
@@ -191,6 +194,7 @@ public class LocalDataSourceServiceImpl implements DataSourceService {
     private void execute(Connection conn, String sqlFile) throws Exception {
         Statement stmt = null;
         try {
+            // 读取sql文件
             List<String> sqlList = loadSql(sqlFile);
             stmt = conn.createStatement();
             for (String sql : sqlList) {

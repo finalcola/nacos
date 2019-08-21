@@ -125,7 +125,7 @@ public class ConfigServletInner {
             try {
                 String md5 = Constants.NULL;
                 long lastModified = 0L;
-                // 读取缓存
+                // 读取cacheData
                 CacheItem cacheItem = ConfigService.getContentCache(groupKey);
                 if (cacheItem != null) {
                     if (cacheItem.isBeta()) {
@@ -137,6 +137,7 @@ public class ConfigServletInner {
                 File file = null;
                 ConfigInfoBase configInfoBase = null;
                 PrintWriter out = null;
+                // 查询配置的md5、lastModify等信息（beta和tag会查询特殊表）
                 if (isBeta) {
                     md5 = cacheItem.getMd54Beta();
                     lastModified = cacheItem.getLastModifiedTs4Beta();
@@ -191,6 +192,7 @@ public class ConfigServletInner {
                             }
                         }
                     } else {
+                        // tag类型
                         if (cacheItem != null) {
                             if (cacheItem.tagMd5 != null) {
                                 md5 = cacheItem.tagMd5.get(tag);
@@ -232,6 +234,7 @@ public class ConfigServletInner {
                 response.setHeader("Pragma", "no-cache");
                 response.setDateHeader("Expires", 0);
                 response.setHeader("Cache-Control", "no-cache,no-store");
+                // 设置上次更新时间
                 if (STANDALONE_MODE && !PropertyUtil.isStandaloneUseMysql()) {
                     response.setDateHeader("Last-Modified", lastModified);
                 } else {
@@ -240,11 +243,13 @@ public class ConfigServletInner {
                 }
 
                 if (STANDALONE_MODE && !PropertyUtil.isStandaloneUseMysql()) {
+                    // 单机模式发送内容
                     out = response.getWriter();
                     out.print(configInfoBase.getContent());
                     out.flush();
                     out.close();
                 } else {
+                    // 零拷贝发送磁盘缓存文件
                     fis.getChannel().transferTo(0L, fis.getChannel().size(),
                         Channels.newChannel(response.getOutputStream()));
                 }

@@ -173,7 +173,6 @@ public class DumpService {
                     }
                 }
             };
-
             TimerTaskService.scheduleWithFixedDelay(heartbeat, 0, 10, TimeUnit.SECONDS);
 
             long initialDelay = new Random().nextInt(INITIAL_DELAY_IN_MINUTE) + 10;

@@ -84,6 +84,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
      */
     private TransactionTemplate tjt;
 
+    // 测试master数据库连通性
     private JdbcTemplate testMasterJT;
     private JdbcTemplate testMasterWritableJT;
 
@@ -155,6 +156,7 @@ public class BasicDataSourceServiceImpl implements DataSourceService {
             // 定时更新masterDB
             TimerTaskService.scheduleWithFixedDelay(new SelectMasterTask(), 10, 10,
                 TimeUnit.SECONDS);
+            // 检查数据库健康情况
             TimerTaskService.scheduleWithFixedDelay(new CheckDBHealthTask(), 10, 10,
                 TimeUnit.SECONDS);
         }
