@@ -38,6 +38,8 @@ import static com.alibaba.nacos.config.server.utils.LogUtil.*;
 
 /**
  * config service
+ * 通过cacheData保存配置信息。
+ * 当数据库的数据发生更新时，会接收到通知，异步更新（CommunicationController -> DumpService）
  *
  * @author Nacos
  */
@@ -59,10 +61,13 @@ public class ConfigService {
      */
     static public boolean dump(String dataId, String group, String tenant, String content, long lastModifiedTs) {
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        // 获取或创建 CacheItem
         makeSure(groupKey);
+        // 获取cacheData的写锁
         final int lockResult = tryWriteLock(groupKey);
         assert (lockResult != 0);
 
+        // 获取锁失败
         if (lockResult < 0) {
             dumpLog.warn("[dump-error] write lock failed. {}", groupKey);
             return false;
@@ -79,7 +84,7 @@ public class ConfigService {
                 // 写入文件
                 DiskUtil.saveToDisk(dataId, group, tenant, content);
             }
-            // 更新缓存的MD5
+            // 更新cacheData的MD5
             updateMd5(groupKey, md5, lastModifiedTs);
             return true;
         } catch (IOException ioe) {
@@ -183,6 +188,7 @@ public class ConfigService {
         final String groupKey = GroupKey2.getKey(dataId, group, tenant);
 
         makeSure(groupKey);
+        // 写锁
         final int lockResult = tryWriteLock(groupKey);
         assert (lockResult != 0);
 
@@ -193,6 +199,7 @@ public class ConfigService {
 
         try {
             final String md5 = MD5.getInstance().getMD5String(content);
+            // 更新磁盘文件
             if (!STANDALONE_MODE || PropertyUtil.isStandaloneUseMysql()) {
                 String loacalMd5 = DiskUtil.getLocalConfigMd5(dataId, group, tenant);
                 if (md5.equals(loacalMd5)) {
@@ -204,6 +211,7 @@ public class ConfigService {
                     DiskUtil.saveToDisk(dataId, group, tenant, content);
                 }
             }
+            // 更新cacheData
             updateMd5(groupKey, md5, lastModifiedTs);
             return true;
         } catch (IOException ioe) {
@@ -215,6 +223,7 @@ public class ConfigService {
         }
     }
 
+    // 重新加载AggrWhitelist、ClientIpWhiteList、SwitchService
     static public void reloadConfig() {
         String aggreds = null;
         try {
@@ -276,6 +285,7 @@ public class ConfigService {
 
     }
 
+    // 比较cacheData和本地磁盘记录的md5，返回md5发生了修改的记录
     static public List<String> checkMd5() {
         List<String> diffList = new ArrayList<String>();
         long startTime = System.currentTimeMillis();
@@ -415,6 +425,7 @@ public class ConfigService {
         if (cache.md5 == null || !cache.md5.equals(md5)) {
             cache.md5 = md5;
             cache.lastModifiedTs = lastModifiedTs;
+            // 通知cacheData更新
             EventDispatcher.fireEvent(new LocalDataChangeEvent(groupKey));
         }
     }
@@ -581,6 +592,7 @@ public class ConfigService {
         if (null != item) {
             return item;
         }
+        // 初始化
         CacheItem tmp = new CacheItem(groupKey);
         item = CACHE.putIfAbsent(groupKey, tmp);
         return (null == item) ? tmp : item;

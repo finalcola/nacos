@@ -43,10 +43,12 @@ public class MD5Util {
                                           HttpServletResponse response, Map<String, String> clientMd5Map) {
         List<String> changedGroupKeys = new ArrayList<String>();
         String tag = request.getHeader("Vipserver-Tag");
+        // 查询md5值发生修改的配置groupKey
         for (Map.Entry<String, String> entry : clientMd5Map.entrySet()) {
             String groupKey = entry.getKey();
             String clientMd5 = entry.getValue();
             String ip = RequestUtil.getRemoteIp(request);
+            // 比较md5
             boolean isUptodate = ConfigService.isUptodate(groupKey, clientMd5, ip, tag);
             if (!isUptodate) {
                 changedGroupKeys.add(groupKey);

@@ -79,7 +79,7 @@ public class AsyncNotifyService extends AbstractEventListener {
             String tag = evt.tag;
             List<?> ipList = serverListService.getServerList();
 
-            // 其实这里任何类型队列都可以
+            // 将数据变更的通知发送给其他server
             Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
             for (int i = 0; i < ipList.size(); i++) {
                 queue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, (String) ipList.get(i), evt.isBeta));
@@ -130,7 +130,7 @@ public class AsyncNotifyService extends AbstractEventListener {
                 String targetIp = task.getTargetIP();
                 if (serverListService.getServerList().contains(
                     targetIp)) {
-                    // 启动健康检查且有不监控的ip则直接把放到通知队列，否则通知
+                    // 发送的节点不健康，则重新假如通知队列；否则直接发送
                     if (serverListService.isHealthCheck()
                         && ServerListService.getServerListUnhealth().contains(targetIp)) {
                         // target ip 不健康，则放入通知列表中
@@ -138,15 +138,20 @@ public class AsyncNotifyService extends AbstractEventListener {
                             task.getLastModified(),
                             LOCAL_IP, ConfigTraceService.NOTIFY_EVENT_UNHEALTH, 0, task.target);
                         // get delay time and set fail count to the task
+                        // 重新计算delayTime并设置失败次数，然后重新加入通知队列
                         asyncTaskExecute(task);
                     } else {
+                        // 发送请求，通知数据更新
                         HttpGet request = new HttpGet(task.url);
+                        // 携带时间戳
                         request.setHeader(NotifyService.NOTIFY_HEADER_LAST_MODIFIED,
                             String.valueOf(task.getLastModified()));
+                        // 添加当前节点的IP
                         request.setHeader(NotifyService.NOTIFY_HEADER_OP_HANDLE_IP, LOCAL_IP);
                         if (task.isBeta) {
                             request.setHeader("isBeta", "true");
                         }
+                        // 发送更新通知
                         httpclient.execute(request, new AsyncNotifyCallBack(httpclient, task));
                     }
                 }
@@ -195,6 +200,7 @@ public class AsyncNotifyService extends AbstractEventListener {
                     task.target);
 
                 //get delay time and set fail count to the task
+                // 失败，重新假如通知队列
                 asyncTaskExecute(task);
 
                 LogUtil.notifyLog.error("[notify-retry] target:{} dataId:{} group:{} ts:{}",
@@ -275,6 +281,7 @@ public class AsyncNotifyService extends AbstractEventListener {
             } catch (UnsupportedEncodingException e) {
                 log.error("URLEncoder encode error", e);
             }
+            // 拼接url
             if (StringUtils.isBlank(tenant)) {
                 this.url = MessageFormat.format(URL_PATTERN, target, RunningConfigUtils.getContextPath(), dataId,
                     group);

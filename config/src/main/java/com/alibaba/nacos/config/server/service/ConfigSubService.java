@@ -209,6 +209,7 @@ public class ConfigSubService {
         }
     }
 
+    // 查询listener状态（sampleTime为取样次数）
     public SampleResult getCollectSampleResult(String dataId, String group, String tenant, int sampleTime)
         throws Exception {
         List<SampleResult> resultList = new ArrayList<SampleResult>();

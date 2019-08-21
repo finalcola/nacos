@@ -70,6 +70,7 @@ public class CommunicationController {
         long lastModifiedTs = StringUtils.isEmpty(lastModified) ? -1 : Long.parseLong(lastModified);
         String handleIp = request.getHeader(NotifyService.NOTIFY_HEADER_OP_HANDLE_IP);
         String isBetaStr = request.getHeader("isBeta");
+        // 转储更新的数据,会更新cacheData
         if (StringUtils.isNotBlank(isBetaStr) && trueStr.equals(isBetaStr)) {
             dumpService.dump(dataId, group, tenant, lastModifiedTs, handleIp, true);
         } else {

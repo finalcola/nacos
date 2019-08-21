@@ -206,8 +206,9 @@ public class LongPollingService extends AbstractEventListener {
 
     public void addLongPollingClient(HttpServletRequest req, HttpServletResponse rsp, Map<String, String> clientMd5Map,
                                      int probeRequestSize) {
-
+        // 长轮询timeout
         String str = req.getHeader(LongPollingService.LONG_POLLING_HEADER);
+        // 请求头包含"Long-Pulling-Timeout-No-Hangup=true"，代表需要立即返回
         String noHangUpFlag = req.getHeader(LongPollingService.LONG_POLLING_NO_HANG_UP_HEADER);
         String appName = req.getHeader(RequestUtil.CLIENT_APPNAME_HEADER);
         String tag = req.getHeader("Vipserver-Tag");
@@ -224,7 +225,7 @@ public class LongPollingService extends AbstractEventListener {
             // MD5发生了更新的groupKey
             List<String> changedGroups = MD5Util.compareMd5(req, rsp, clientMd5Map);
             if (changedGroups.size() > 0) {
-                // 发送响应
+                // 发生了修改，立即发送响应
                 generateResponse(req, rsp, changedGroups);
                 LogUtil.clientLog.info("{}|{}|{}|{}|{}|{}|{}",
                     System.currentTimeMillis() - start, "instant", RequestUtil.getRemoteIp(req), "polling",
@@ -243,7 +244,7 @@ public class LongPollingService extends AbstractEventListener {
         // AsyncContext.setTimeout()的超时时间不准，所以只能自己控制
         asyncContext.setTimeout(0L);
 
-        // 调度长轮询任务
+        // 调度长轮询任务（等待一段时间后，再发送响应）
         scheduler.execute(
             new ClientLongPolling(asyncContext, clientMd5Map, ip, probeRequestSize, timeout, appName, tag));
     }
@@ -261,7 +262,8 @@ public class LongPollingService extends AbstractEventListener {
             // ignore
         } else {
             if (event instanceof LocalDataChangeEvent) {
-                LocalDataChangeEvent evt = (LocalDataChangeEvent)event;
+                LocalDataChangeEvent evt = (LocalDataChangeEvent) event;
+                // 通知挂起的轮询请求，返回发生更新的配置
                 scheduler.execute(new DataChangeTask(evt.groupKey, evt.isBeta, evt.betaIps));
             }
         }
@@ -305,6 +307,8 @@ public class LongPollingService extends AbstractEventListener {
         @Override
         public void run() {
             try {
+                // 对于长轮询任务，如果等待响应过程中配置发生了更新，则会取消调度轮询的任务，
+                // 由当前任务返回更新的配置信息
                 ConfigService.getContentBetaMd5(groupKey);
                 for (Iterator<ClientLongPolling> iter = allSubs.iterator(); iter.hasNext(); ) {
                     ClientLongPolling clientSub = iter.next();
@@ -327,6 +331,7 @@ public class LongPollingService extends AbstractEventListener {
                             RequestUtil.getRemoteIp((HttpServletRequest)clientSub.asyncContext.getRequest()),
                             "polling",
                             clientSub.clientMd5Map.size(), clientSub.probeRequestSize, groupKey);
+                        // 返回更新的配置
                         clientSub.sendResponse(Arrays.asList(groupKey));
                     }
                 }
@@ -373,6 +378,7 @@ public class LongPollingService extends AbstractEventListener {
 
         @Override
         public void run() {
+            // 调度长轮询任务，如果中途数据变更（DataChangeTask通知），则取消该调度
             asyncTimeoutFuture = scheduler.schedule(new Runnable() {
                 @Override
                 public void run() {
@@ -383,21 +389,25 @@ public class LongPollingService extends AbstractEventListener {
                          */
                         allSubs.remove(ClientLongPolling.this);
 
+                        // 固定超时时间的情况，需要在到期时检查md5
                         if (isFixedPolling()) {
                             LogUtil.clientLog.info("{}|{}|{}|{}|{}|{}",
                                 (System.currentTimeMillis() - createTime),
                                 "fix", RequestUtil.getRemoteIp((HttpServletRequest)asyncContext.getRequest()),
                                 "polling",
                                 clientMd5Map.size(), probeRequestSize);
+                            // 检查md5是否发生了更改
                             List<String> changedGroups = MD5Util.compareMd5(
                                 (HttpServletRequest)asyncContext.getRequest(),
                                 (HttpServletResponse)asyncContext.getResponse(), clientMd5Map);
+                            // 发送响应
                             if (changedGroups.size() > 0) {
                                 sendResponse(changedGroups);
                             } else {
                                 sendResponse(null);
                             }
                         } else {
+                            // 指定轮询时间的情况，已经检查过md5，直接返回空
                             LogUtil.clientLog.info("{}|{}|{}|{}|{}|{}",
                                 (System.currentTimeMillis() - createTime),
                                 "timeout", RequestUtil.getRemoteIp((HttpServletRequest)asyncContext.getRequest()),

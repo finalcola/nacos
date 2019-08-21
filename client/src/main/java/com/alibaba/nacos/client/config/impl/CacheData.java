@@ -280,6 +280,7 @@ public class CacheData {
     private volatile String md5;
     /**
      * whether use local config
+     * 是否使用本地磁盘的缓存配置文件
      */
     private volatile boolean isUseLocalConfig = false;
     /**

@@ -1285,6 +1285,7 @@ public class PersistService {
         }
     }
 
+    // 分页查询config_info
     public Page<ConfigInfo> findConfigInfo4Page(final int pageNo, final int pageSize, final String dataId,
                                                 final String group,
                                                 final String tenant, final Map<String, Object> configAdvanceInfo) {

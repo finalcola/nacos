@@ -46,6 +46,7 @@ public final class TaskManager implements TaskManagerMBean {
 
     private TaskProcessor defaultTaskProcessor;
 
+    // 后台处理线程,定时调用process方法
     Thread processingThread;
 
     private final AtomicBoolean closed = new AtomicBoolean(true);
@@ -53,6 +54,7 @@ public final class TaskManager implements TaskManagerMBean {
     private String name;
 
 
+    // 定时调用process方法
     class ProcessRunnable implements Runnable {
 
         @Override
@@ -93,8 +95,10 @@ public final class TaskManager implements TaskManagerMBean {
         } else {
             this.processingThread = new Thread(new ProcessRunnable());
         }
+        // 后台线程
         this.processingThread.setDaemon(true);
         this.closed.set(false);
+        // 开启后台线程
         this.processingThread.start();
     }
 
@@ -160,6 +164,7 @@ public final class TaskManager implements TaskManagerMBean {
         try {
             AbstractTask oldTask = tasks.put(type, task);
             MetricsMonitor.getDumpTaskMonitor().set(tasks.size());
+            // 合并旧任务
             if (null != oldTask) {
                 task.merge(oldTask);
             }
@@ -169,7 +174,7 @@ public final class TaskManager implements TaskManagerMBean {
     }
 
     /**
-     *
+     * 执行tasks列表中的任务
      */
     protected void process() {
         for (Map.Entry<String, AbstractTask> entry : this.tasks.entrySet()) {

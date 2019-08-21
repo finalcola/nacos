@@ -67,6 +67,7 @@ public class DumpService {
     @PostConstruct
     public void init() {
         LogUtil.defaultLog.warn("DumpService start");
+        // 创建dumpTask的处理器
         DumpProcessor processor = new DumpProcessor(this);
         DumpAllProcessor dumpAllProcessor = new DumpAllProcessor(this);
         DumpAllBetaProcessor dumpAllBetaProcessor = new DumpAllBetaProcessor(this);
@@ -100,6 +101,7 @@ public class DumpService {
                 log.warn("clearConfigHistory start");
                 if (ServerListService.isFirstIp()) {
                     try {
+                        // 删除过期的日志表数据
                         Timestamp startTime = getBeforeStamp(TimeUtils.getCurrentTime(), 24 * getRetentionDays());
                         int totalCount = persistService.findConfigHistoryCountByTime(startTime);
                         if (totalCount > 0) {
@@ -121,6 +123,7 @@ public class DumpService {
         };
 
         try {
+            // 将数据库的config_info保存到磁盘和cacheData
             dumpConfigInfo(dumpAllProcessor);
 
             // 更新beta缓存
@@ -132,6 +135,7 @@ public class DumpService {
             // 更新Tag缓存
             LogUtil.defaultLog.info("start clear all config-info-tag.");
             DiskUtil.clearAllTag();
+            // 转储config_info_tag表
             if (persistService.isExistTable(TAG_TABLE_NAME)) {
                 dumpAllTagProcessor.process(DumpAllTagTask.TASK_ID, new DumpAllTagTask());
             }
@@ -155,12 +159,14 @@ public class DumpService {
                 "Nacos Server did not start because dumpservice bean construction failure :\n" + e.getMessage());
         }
         if (!STANDALONE_MODE) {
+            // 定时心跳任务，该心跳只是记录时间戳，不于其他server通信
             Runnable heartbeat = new Runnable() {
                 @Override
                 public void run() {
                     String heartBeatTime = TimeUtils.getCurrentTime().toString();
                     // write disk
                     try {
+                        // 将当前时间写入磁盘，记录server最后一次运行的时间戳
                         DiskUtil.saveHeartBeatToDisk(heartBeatTime);
                     } catch (IOException e) {
                         LogUtil.fatalLog.error("save heartbeat fail" + e.getMessage());
@@ -173,13 +179,16 @@ public class DumpService {
             long initialDelay = new Random().nextInt(INITIAL_DELAY_IN_MINUTE) + 10;
             LogUtil.defaultLog.warn("initialDelay:{}", initialDelay);
 
+            // 定时转储configInfo任务
             TimerTaskService.scheduleWithFixedDelay(dumpAll, initialDelay, DUMP_ALL_INTERVAL_IN_MINUTE,
                 TimeUnit.MINUTES);
 
+            // 定时转储config_info_beta任务
             TimerTaskService.scheduleWithFixedDelay(dumpAllBeta, initialDelay, DUMP_ALL_INTERVAL_IN_MINUTE,
                 TimeUnit.MINUTES);
         }
 
+        // 删除过期的日志表数据
         TimerTaskService.scheduleWithFixedDelay(clearConfigHistory, 10, 10, TimeUnit.MINUTES);
 
     }
@@ -192,9 +201,12 @@ public class DumpService {
         FileInputStream fis = null;
         Timestamp heartheatLastStamp = null;
         try {
+            // 环境变量中是否存在"isQuickStart"
             if (isQuickStart()) {
+                // 心跳文件
                 File heartbeatFile = DiskUtil.heartBeatFile();
                 if (heartbeatFile.exists()) {
+                    // 读取保存的时间戳（上次心跳的时间戳）
                     fis = new FileInputStream(heartbeatFile);
                     String heartheatTempLast = IOUtils.toString(fis,
                         Constants.ENCODE);
@@ -206,26 +218,33 @@ public class DumpService {
                 }
             }
             if (isAllDump) {
+                // 转储所有配置
                 LogUtil.defaultLog.info("start clear all config-info.");
                 DiskUtil.clearAll();
+                // 存储所有数据
                 dumpAllProcessor.process(DumpAllTask.TASK_ID, new DumpAllTask());
             } else {
                 Timestamp beforeTimeStamp = getBeforeStamp(heartheatLastStamp,
                     timeStep);
+                // 查询数据库，加载cacheData
                 DumpChangeProcessor dumpChangeProcessor = new DumpChangeProcessor(
                     this, beforeTimeStamp, TimeUtils.getCurrentTime());
                 dumpChangeProcessor.process(DumpChangeTask.TASK_ID,
                     new DumpChangeTask());
+
+                // 定时比较cacheData和磁盘的记录，转储发生变更的数据
                 Runnable checkMd5Task = new Runnable() {
                     @Override
                     public void run() {
                         LogUtil.defaultLog.error("start checkMd5Task");
+                        // 比较cacheData和本地磁盘记录的md5，返回md5发生了修改的记录
                         List<String> diffList = ConfigService.checkMd5();
                         for (String groupKey : diffList) {
                             String[] dg = GroupKey.parseKey(groupKey);
                             String dataId = dg[0];
                             String group = dg[1];
                             String tenant = dg[2];
+                            // 转储发生了更新的configInfo
                             ConfigInfoWrapper configInfo = persistService.queryConfigInfo(dataId, group, tenant);
                             ConfigService.dumpChange(dataId, group, tenant, configInfo.getContent(),
                                 configInfo.getLastModified());
@@ -313,6 +332,7 @@ public class DumpService {
     public void dump(String dataId, String group, String tenant, String tag, long lastModified, String handleIp,
                      boolean isBeta) {
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        // 添加dump任务
         dumpTaskMgr.addTask(groupKey, new DumpTask(groupKey, tag, lastModified, handleIp, isBeta));
     }
 

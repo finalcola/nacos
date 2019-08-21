@@ -85,6 +85,7 @@ public class ClientWorker {
 
     public void addTenantListeners(String dataId, String group, List<? extends Listener> listeners) throws NacosException {
         group = null2defaultGroup(group);
+        // 默认为空串
         String tenant = agent.getTenant();
         // 获取或创建cacheData
         CacheData cache = addCacheDataIfAbsent(dataId, group, tenant);
@@ -300,6 +301,7 @@ public class ClientWorker {
         }
 
         // 有 -> 没有。不通知业务监听器，从server拿到配置后通知。
+        // 退出failover保护模式
         if (cacheData.isUseLocalConfigInfo() && !path.exists()) {
             cacheData.setUseLocalConfigInfo(false);
             LOGGER.warn("[{}] [failover-change] failover file deleted. dataId={}, group={}, tenant={}", agent.getName(),
@@ -324,7 +326,7 @@ public class ClientWorker {
         return (null == group) ? Constants.DEFAULT_GROUP : group.trim();
     }
 
-    // 开启长轮询任务
+    // 为cacheMap中的新cacheData开启长轮询任务
     public void checkConfigInfo() {
         // 分任务
         int listenerSize = cacheMap.get().size();
@@ -347,6 +349,7 @@ public class ClientWorker {
         StringBuilder sb = new StringBuilder();
         // 根据groupData构造groupKey(dataId,group)
         for (CacheData cacheData : cacheDatas) {
+            // 排除failover保护模式的cacheData
             if (!cacheData.isUseLocalConfigInfo()) {
                 sb.append(cacheData.dataId).append(WORD_SEPARATOR);
                 sb.append(cacheData.group).append(WORD_SEPARATOR);
@@ -356,8 +359,8 @@ public class ClientWorker {
                     sb.append(cacheData.getMd5()).append(WORD_SEPARATOR);
                     sb.append(cacheData.getTenant()).append(LINE_SEPARATOR);
                 }
+                // cacheData 首次出现在cacheMap中&首次check更新
                 if (cacheData.isInitializing()) {
-                    // cacheData 首次出现在cacheMap中&首次check更新
                     inInitializingCacheList
                         .add(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant));
                 }
@@ -381,6 +384,7 @@ public class ClientWorker {
         headers.add("" + timeout);
 
         // told server do not hang me up if new initializing cacheData added in
+        // 如果存在新增的cacheData，让server不要挂起该请求，而是立即返回
         if (isInitializingCacheList) {
             headers.add("Long-Pulling-Timeout-No-Hangup");
             headers.add("true");
@@ -522,6 +526,7 @@ public class ClientWorker {
                         try {
                             // 检查本地failover文件
                             checkLocalConfig(cacheData);
+                            // failover保护模式下，会使用本地的缓存文件
                             if (cacheData.isUseLocalConfigInfo()) {
                                 // 如果内容发生了修改，通知listener
                                 cacheData.checkListenerMd5();
@@ -545,7 +550,7 @@ public class ClientWorker {
                         tenant = key[2];
                     }
                     try {
-                        // 根据groupKey获取server配置，并保存到快照文件
+                        // 请求API，获取configInfo信息，并保存到快照文件
                         String content = getServerConfig(dataId, group, tenant, 3000L);
                         // 更新缓存
                         CacheData cache = cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));

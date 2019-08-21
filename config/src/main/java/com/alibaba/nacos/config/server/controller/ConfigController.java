@@ -363,6 +363,7 @@ public class ConfigController {
         }
     }
 
+    // 删除config_info_beta
     @RequestMapping(params = "beta=true", method = RequestMethod.DELETE)
     @ResponseBody
     public RestResult<Boolean> stopBeta(HttpServletRequest request, HttpServletResponse response,
@@ -387,6 +388,7 @@ public class ConfigController {
         return rr;
     }
 
+    // 查询connfig_info_beta
     @RequestMapping(params = "beta=true", method = RequestMethod.GET)
     @ResponseBody
     public RestResult<ConfigInfo4Beta> queryBeta(HttpServletRequest request, HttpServletResponse response,
@@ -409,6 +411,7 @@ public class ConfigController {
         }
     }
 
+    // 导出数据库
     @RequestMapping(params = "export=true", method = RequestMethod.GET)
     @ResponseBody
     public ResponseEntity<byte[]> exportConfig(HttpServletRequest request,
@@ -451,6 +454,7 @@ public class ConfigController {
         return new ResponseEntity<byte[]>(ZipUtils.zip(zipItemList), headers, HttpStatus.OK);
     }
 
+    // 批量导入
     @RequestMapping(params = "import=true", method = RequestMethod.POST)
     @ResponseBody
     public RestResult<Map<String, Object>> importAndPublishConfig(HttpServletRequest request, HttpServletResponse response,
@@ -461,14 +465,16 @@ public class ConfigController {
                                                                   MultipartFile file) throws NacosException {
         Map<String, Object> failedData = new HashMap<>(4);
 
-        if(StringUtils.isNotBlank(namespace)){
-            if(persistService.tenantInfoCountByTenantId(namespace) <= 0){
+        if (StringUtils.isNotBlank(namespace)) {
+            // select count(1) from tenant_info where tenant_id = ?
+            if (persistService.tenantInfoCountByTenantId(namespace) <= 0) {
                 failedData.put("succCount", 0);
                 return ResultBuilder.buildResult(ResultCodeEnum.NAMESPACE_NOT_EXIST, failedData);
             }
         }
         List<ConfigInfo> configInfoList = null;
         try {
+            // 解压文件,解析数据
             ZipUtils.UnZipResult unziped = ZipUtils.unzip(file.getBytes());
             ZipUtils.ZipItem metaDataZipItem = unziped.getMetaDataItem();
             Map<String, String> metaDataMap = new HashMap<>(16);
@@ -524,8 +530,10 @@ public class ConfigController {
         final String srcIp = RequestUtil.getRemoteIp(request);
         String requestIpApp = RequestUtil.getAppName(request);
         final Timestamp time = TimeUtils.getCurrentTime();
+        // 批量导入
         Map<String, Object> saveResult = persistService.batchInsertOrUpdate(configInfoList, srcUser, srcIp,
             null, time, false, policy);
+        // 发布事件
         for (ConfigInfo configInfo : configInfoList) {
             EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, configInfo.getDataId(), configInfo.getGroup(),
                 configInfo.getTenant(), time.getTime()));

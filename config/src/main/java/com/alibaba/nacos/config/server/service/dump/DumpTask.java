@@ -161,6 +161,7 @@ class DumpProcessor implements TaskProcessor {
         } else {
             if (StringUtils.isBlank(tag)) {
                 ConfigInfo cf = dumpService.persistService.findConfigInfo(dataId, group, tenant);
+                // 内部配置处理
                 if (dataId.equals(AggrWhitelist.AGGRIDS_METADATA)) {
                     if (null != cf) {
                         AggrWhitelist.load(cf.getContent());
@@ -184,9 +185,12 @@ class DumpProcessor implements TaskProcessor {
                         SwitchService.load(null);
                     }
                 }
+                // 内部配置处理 end
 
+                // 转储数据库最新的数据
                 boolean result;
                 if (null != cf) {
+                    // 更新configInfo
                     result = ConfigService.dump(dataId, group, tenant, cf.getContent(), lastModified);
 
                     if (result) {
@@ -195,6 +199,7 @@ class DumpProcessor implements TaskProcessor {
                             cf.getContent().length());
                     }
                 } else {
+                    // 处理已经删除的configInfo
                     result = ConfigService.remove(dataId, group, tenant);
 
                     if (result) {
@@ -204,8 +209,8 @@ class DumpProcessor implements TaskProcessor {
                 }
                 return result;
             } else {
+                // 更新config_info_tag表的数据
                 ConfigInfo4Tag cf = dumpService.persistService.findConfigInfo4Tag(dataId, group, tenant, tag);
-                //
                 boolean result;
                 if (null != cf) {
                     result = ConfigService.dumpTag(dataId, group, tenant, tag, cf.getContent(), lastModified);
@@ -230,6 +235,7 @@ class DumpProcessor implements TaskProcessor {
     final DumpService dumpService;
 }
 
+// 会将数据库中所有的配置信息写入到磁盘，将MD5保存到cacheData
 class DumpAllProcessor implements TaskProcessor {
 
     DumpAllProcessor(DumpService dumpService) {
@@ -239,15 +245,19 @@ class DumpAllProcessor implements TaskProcessor {
 
     @Override
     public boolean process(String taskType, AbstractTask task) {
+        // 查询config_info中最大的id
         long currentMaxId = persistService.findConfigMaxId();
         long lastMaxId = 0;
         while (lastMaxId < currentMaxId) {
+            // 分页查询connfig_info
             Page<PersistService.ConfigInfoWrapper> page = persistService.findAllConfigInfoFragment(lastMaxId,
                 PAGE_SIZE);
+            // 将查询结果写入磁盘和缓存
             if (page != null && page.getPageItems() != null) {
                 for (PersistService.ConfigInfoWrapper cf : page.getPageItems()) {
                     long id = cf.getId();
                     lastMaxId = id > lastMaxId ? id : lastMaxId;
+                    // 加载内部配置
                     if (cf.getDataId().equals(AggrWhitelist.AGGRIDS_METADATA)) {
                         AggrWhitelist.load(cf.getContent());
                     }
@@ -260,6 +270,7 @@ class DumpAllProcessor implements TaskProcessor {
                         SwitchService.load(cf.getContent());
                     }
 
+                    // 普通属性,保存到磁盘
                     boolean result = ConfigService.dump(cf.getDataId(), cf.getGroup(), cf.getTenant(), cf.getContent(),
                         cf.getLastModified());
 
@@ -333,6 +344,7 @@ class DumpAllTagProcessor implements TaskProcessor {
 
         int actualRowCount = 0;
         for (int pageNo = 1; pageNo <= pageCount; pageNo++) {
+            // config_info_tag
             Page<ConfigInfoTagWrapper> page = persistService.findAllConfigInfoTagForDumpAll(pageNo, PAGE_SIZE);
             if (page != null) {
                 for (ConfigInfoTagWrapper cf : page.getPageItems()) {
@@ -372,9 +384,11 @@ class DumpChangeProcessor implements TaskProcessor {
             startTime, endTime);
         LogUtil.defaultLog.warn("updateMd5 start");
         long startUpdateMd5 = System.currentTimeMillis();
+        // 获取所有的配置的Md5值
         List<ConfigInfoWrapper> updateMd5List = persistService
             .listAllGroupKeyMd5();
         LogUtil.defaultLog.warn("updateMd5 count:{}", updateMd5List.size());
+        // 创建对应的cacheData
         for (ConfigInfoWrapper config : updateMd5List) {
             final String groupKey = GroupKey2.getKey(config.getDataId(),
                 config.getGroup());
@@ -385,11 +399,14 @@ class DumpChangeProcessor implements TaskProcessor {
         LogUtil.defaultLog.warn("updateMd5 done,cost:{}", endUpdateMd5
             - startUpdateMd5);
 
+        // 处理已经删除的connfig_info
         LogUtil.defaultLog.warn("deletedConfig start");
         long startDeletedConfigTime = System.currentTimeMillis();
+        // 查询日志表
         List<ConfigInfo> configDeleted = persistService.findDeletedConfig(
             startTime, endTime);
         LogUtil.defaultLog.warn("deletedConfig count:{}", configDeleted.size());
+        // 删除对应的cacheData
         for (ConfigInfo configInfo : configDeleted) {
             if (persistService.findConfigInfo(configInfo.getDataId(), configInfo.getGroup(),
                 configInfo.getTenant()) == null) {
@@ -400,12 +417,15 @@ class DumpChangeProcessor implements TaskProcessor {
         LogUtil.defaultLog.warn("deletedConfig done,cost:{}",
             endDeletedConfigTime - startDeletedConfigTime);
 
+        // 处理发生了更新的config_info
         LogUtil.defaultLog.warn("changeConfig start");
         long startChangeConfigTime = System.currentTimeMillis();
+        // 查询日志表
         List<PersistService.ConfigInfoWrapper> changeConfigs = persistService
             .findChangeConfig(startTime, endTime);
         LogUtil.defaultLog.warn("changeConfig count:{}", changeConfigs.size());
         for (PersistService.ConfigInfoWrapper cf : changeConfigs) {
+            // 更新cacheData和本地文件
             boolean result = ConfigService.dumpChange(cf.getDataId(), cf.getGroup(), cf.getTenant(),
                 cf.getContent(), cf.getLastModified());
             final String content = cf.getContent();
@@ -416,6 +436,7 @@ class DumpChangeProcessor implements TaskProcessor {
                     GroupKey2.getKey(cf.getDataId(), cf.getGroup()),
                     cf.getLastModified(), content.length(), md5});
         }
+        // 重新加载AggrWhitelist、ClientIpWhiteList、SwitchService
         ConfigService.reloadConfig();
         long endChangeConfigTime = System.currentTimeMillis();
         LogUtil.defaultLog.warn("changeConfig done,cost:{}",
