@@ -69,6 +69,7 @@ public enum HealthCheckType {
         return enumType.healthCheckerClass;
     }
 
+    // 获取当前支持的healthCheckerClass
     public static List<Class> getLoadedHealthCheckerClasses(){
         List<Class> all = new ArrayList<>();
         for(HealthCheckType type : values()){

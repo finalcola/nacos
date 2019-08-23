@@ -61,6 +61,7 @@ public class CatalogController {
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
             Constants.DEFAULT_NAMESPACE_ID);
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
+        // 获取service详情
         Service detailedService = serviceManager.getService(namespaceId, serviceName);
         if (detailedService == null) {
             throw new NacosException(NacosException.NOT_FOUND, "service " + serviceName + " is not found!");
@@ -79,6 +80,7 @@ public class CatalogController {
 
         List<Cluster> clusters = new ArrayList<>();
 
+        // 集群信息
         for (com.alibaba.nacos.naming.core.Cluster cluster : detailedService.getClusterMap().values()) {
             Cluster clusterView = new Cluster();
             clusterView.setName(cluster.getName());
@@ -96,9 +98,9 @@ public class CatalogController {
         return detailView;
     }
 
+    // 查询service指定集群下的机器列表
     @RequestMapping(value = "/instances")
     public JSONObject instanceList(HttpServletRequest request) throws Exception {
-
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
             Constants.DEFAULT_NAMESPACE_ID);
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
@@ -106,6 +108,7 @@ public class CatalogController {
         int page = Integer.parseInt(WebUtils.required(request, "pageNo"));
         int pageSize = Integer.parseInt(WebUtils.required(request, "pageSize"));
 
+        // service详情信息
         Service service = serviceManager.getService(namespaceId, serviceName);
         if (service == null) {
             throw new NacosException(NacosException.NOT_FOUND, "serivce " + serviceName + " is not found!");
@@ -115,6 +118,7 @@ public class CatalogController {
             throw new NacosException(NacosException.NOT_FOUND, "cluster " + clusterName + " is not found!");
         }
 
+        // 集群下的instance列表
         List<Instance> instances = service.getClusterMap().get(clusterName).allIPs();
 
         int start = (page - 1) * pageSize;
@@ -145,6 +149,7 @@ public class CatalogController {
         boolean withInstances = Boolean.parseBoolean(WebUtils.optional(request, "withInstances", "true"));
 
         if (withInstances) {
+            // 附带Instance列表
             String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
                 Constants.DEFAULT_NAMESPACE_ID);
             List<ServiceDetailInfo> serviceDetailInfoList = new ArrayList<>();
@@ -152,9 +157,11 @@ public class CatalogController {
             int pageSize = Integer.parseInt(WebUtils.required(request, "pageSize"));
             String keyword = WebUtils.optional(request, "keyword", StringUtils.EMPTY);
 
+            // 查询service列表，返回分页结果
             List<Service> serviceList = new ArrayList<>(8);
             serviceManager.getPagedService(namespaceId, pageNo, pageSize, keyword, StringUtils.EMPTY, serviceList);
 
+            // 封装为serviceDetailInfo
             for (Service service : serviceList) {
                 ServiceDetailInfo serviceDetailInfo = new ServiceDetailInfo();
                 serviceDetailInfo.setServiceName(NamingUtils.getServiceName(service.getName()));

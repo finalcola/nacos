@@ -116,6 +116,7 @@ public class RaftCore {
     @Autowired
     private RaftStore raftStore;
 
+    // 将数据更新、删除通知给响应的监听器
     public volatile Notifier notifier = new Notifier();
 
     private boolean initialized = false;
@@ -266,8 +267,10 @@ public class RaftCore {
             json.put("datum", datum);
             json.put("source", peers.local());
 
+            // 删除instances、更新term、通知listener
             onDelete(datum.key, peers.local());
 
+            // 同步到其他server
             for (final String server : peers.allServersWithoutMySelf()) {
                 String url = buildURL(server, API_ON_DEL);
                 HttpClient.asyncHttpDeleteLarge(url, null, JSON.toJSONString(json)
@@ -320,7 +323,7 @@ public class RaftCore {
         local.resetLeaderDue();
 
         // if data should be persistent, usually this is always true:
-        // 持久化非顺时数据
+        // 持久化非临时数据
         if (KeyBuilder.matchPersistentKey(datum.key)) {
             raftStore.write(datum);
         }
@@ -350,7 +353,7 @@ public class RaftCore {
         Loggers.RAFT.info("data added/updated, key={}, term={}", datum.key, local.term);
     }
 
-    // 删除数据时调用
+    // 删除instance
     public void onDelete(String datumKey, RaftPeer source) throws Exception {
 
         RaftPeer local = peers.local();
@@ -375,9 +378,10 @@ public class RaftCore {
 
         // 删除key对应的数据
         String key = datumKey;
+        // 删除datum和磁盘文件，并通知监听器
         deleteDatum(key);
 
-        // 删除服务meta信息时，需要更新版本信息
+        // 删除服务service时，需要更新版本信息
         if (KeyBuilder.matchServiceMetaKey(key)) {
 
             if (local.term.get() + PUBLISH_TERM_INCREASE_COUNT > source.term.get()) {
@@ -395,11 +399,12 @@ public class RaftCore {
 
     }
 
+    // raft master选举任务
     public class MasterElection implements Runnable {
         @Override
         public void run() {
             try {
-
+                // 等待加入集群
                 if (!peers.isReady()) {
                     return;
                 }
@@ -522,6 +527,7 @@ public class RaftCore {
                     return;
                 }
 
+                // 重置心跳时间
                 local.resetHeartbeatDue();
 
                 sendBeat();
@@ -531,7 +537,7 @@ public class RaftCore {
 
         }
 
-        // 向leader发送心跳(根据开关，会决定是否发送datums的key、timestamp信息，用于集群同步数据)
+        // leader向其他follower发送心跳(根据开关，会决定是否发送datums的key、timestamp信息，用于集群同步数据)
         public void sendBeat() throws IOException, InterruptedException {
             RaftPeer local = peers.local();
             if (local.state != RaftPeer.State.LEADER && !STANDALONE_MODE) {
@@ -553,6 +559,7 @@ public class RaftCore {
                 Loggers.RAFT.info("[SEND-BEAT-ONLY] {}", String.valueOf(switchDomain.isSendBeatOnly()));
             }
 
+            // 心跳携带数据
             if (!switchDomain.isSendBeatOnly()) {
                 // 需要发送datums
                 for (Datum datum : datums.values()) {
@@ -627,7 +634,7 @@ public class RaftCore {
     }
 
     /**
-     * 1. 处理心跳请求
+     * 1. 处理leader发送的心跳请求
      * 2. 解析心跳请求中携带的datum，检查本地的datums是否存在过期；如果过期，会向remotePeer请求最新的数据
      */
     public RaftPeer receivedBeat(JSONObject beat) throws Exception {
@@ -656,7 +663,7 @@ public class RaftCore {
                 + ", beat-to-term: " + local.term.get());
         }
 
-        // 投票给remotePeer
+        // 将remotePeer切换为leader，本地切换为follower，投票给remotePeer
         if (local.state != RaftPeer.State.FOLLOWER) {
 
             Loggers.RAFT.info("[RAFT] make remote as leader, remote peer: {}", JSON.toJSONString(remote));
@@ -958,6 +965,7 @@ public class RaftCore {
 
     }
 
+    // 删除datum和磁盘文件，并通知监听器
     private void deleteDatum(String key) {
         Datum deleted;
         try {
@@ -967,6 +975,7 @@ public class RaftCore {
                 raftStore.delete(deleted);
                 Loggers.RAFT.info("datum deleted, key: {}", key);
             }
+            // 通知监听器
             notifier.addTask(URLDecoder.decode(key, "UTF-8"), ApplyAction.DELETE);
         } catch (UnsupportedEncodingException e) {
             Loggers.RAFT.warn("datum key decode failed: {}", key);
@@ -1012,7 +1021,7 @@ public class RaftCore {
 
             while (true) {
                 try {
-
+                    // 不断从阻塞队列拉取任务
                     Pair pair = tasks.take();
 
                     if (pair == null) {
@@ -1022,13 +1031,14 @@ public class RaftCore {
                     String datumKey = (String) pair.getValue0();
                     ApplyAction action = (ApplyAction) pair.getValue1();
 
+                    // 标记任务已执行
                     services.remove(datumKey);
 
                     Loggers.RAFT.info("remove task {}", datumKey);
 
                     int count = 0;
 
-                    // 通知服务相关的listener
+                    // 通知服务相关的listener(SERVICE_META_KEY_PREFIX)
                     if (listeners.containsKey(KeyBuilder.SERVICE_META_KEY_PREFIX)) {
 
                         if (KeyBuilder.matchServiceMetaKey(datumKey) && !KeyBuilder.matchSwitchKey(datumKey)) {

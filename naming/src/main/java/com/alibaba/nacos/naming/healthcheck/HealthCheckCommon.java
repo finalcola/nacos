@@ -138,6 +138,7 @@ public class HealthCheckCommon {
 
         try {
             if (!ip.isHealthy() || !ip.isMockValid()) {
+                // 大于阈值(3次)，更新instance为健康状态，
                 if (ip.getOKCount().incrementAndGet() >= switchDomain.getCheckTimes()) {
                     if (distroMapper.responsible(cluster, ip)) {
                         ip.setHealthy(true);
@@ -145,6 +146,7 @@ public class HealthCheckCommon {
 
                         Service service = cluster.getService();
                         service.setLastModifiedMillis(System.currentTimeMillis());
+                        // 通知client
                         pushService.serviceChanged(service);
                         addResult(new HealthCheckResult(service.getName(), ip));
 
@@ -170,20 +172,25 @@ public class HealthCheckCommon {
         ip.setBeingChecked(false);
     }
 
+    // check instance存活失败
     public void checkFail(Instance ip, HealthCheckTask task, String msg) {
         Cluster cluster = task.getCluster();
 
         try {
             if (ip.isHealthy() || ip.isMockValid()) {
+                // 失败次数大阈值（3次）
                 if (ip.getFailCount().incrementAndGet() >= switchDomain.getCheckTimes()) {
                     if (distroMapper.responsible(cluster, ip)) {
+                        // 更新instance健康状态
                         ip.setHealthy(false);
                         ip.setMockValid(false);
 
+                        // 更新service时间戳
                         Service service = cluster.getService();
                         service.setLastModifiedMillis(System.currentTimeMillis());
                         addResult(new HealthCheckResult(service.getName(), ip));
 
+                        // 通知client服务变更
                         pushService.serviceChanged(service);
 
                         Loggers.EVT_LOG.info("serviceName: {} {POS} {IP-DISABLED} invalid: {}:{}@{}, region: {}, msg: {}",
@@ -204,6 +211,7 @@ public class HealthCheckCommon {
 
         ip.getOKCount().set(0);
 
+        // 标记检查结束
         ip.setBeingChecked(false);
     }
 

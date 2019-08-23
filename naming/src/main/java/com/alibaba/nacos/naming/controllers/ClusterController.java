@@ -66,6 +66,7 @@ public class ClusterController {
             throw new NacosException(NacosException.INVALID_PARAM, "service not found:" + serviceName);
         }
 
+        // 不存在则新建
         Cluster cluster = service.getClusterMap().get(clusterName);
         if (cluster == null) {
             Loggers.SRV_LOG.warn("[UPDATE-CLUSTER] cluster not exist, will create it: {}, service: {}", clusterName, serviceName);
@@ -75,6 +76,7 @@ public class ClusterController {
         cluster.setDefCkport(NumberUtils.toInt(checkPort));
         cluster.setUseIPPort4Check(BooleanUtils.toBoolean(useInstancePort4Check));
 
+        // 根据参数创建对应的AbstractHealthChecker实例
         JSONObject healthCheckObj = JSON.parseObject(healthChecker);
         AbstractHealthChecker abstractHealthChecker;
         String type = healthCheckObj.getString("type");
@@ -84,9 +86,11 @@ public class ClusterController {
         }
         abstractHealthChecker = JSON.parseObject(healthChecker, healthCheckClass);
 
+        // 初始化cluster
         cluster.setHealthChecker(abstractHealthChecker);
         cluster.setMetadata(UtilsAndCommons.parseMetadata(metadata));
         cluster.init();
+        // 更新service
         service.getClusterMap().put(clusterName, cluster);
         service.setLastModifiedMillis(System.currentTimeMillis());
         service.recalculateChecksum();

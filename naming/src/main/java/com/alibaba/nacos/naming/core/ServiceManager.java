@@ -63,7 +63,7 @@ public class ServiceManager implements RecordListener<Service> {
     private LinkedBlockingDeque<ServiceKey> toBeUpdatedServicesQueue = new LinkedBlockingDeque<>(1024 * 1024);
 
     /**
-     * 同步service状态信息
+     * 定时和其他server同步service状态信息
      */
     private Synchronizer synchronizer = new ServiceStatusSynchronizer();
 
@@ -88,9 +88,10 @@ public class ServiceManager implements RecordListener<Service> {
 
     @PostConstruct
     public void init() {
-
+        // 定时与其他server同步service状态
         UtilsAndCommons.SERVICE_SYNCHRONIZATION_EXECUTOR.schedule(new ServiceReporter(), 60000, TimeUnit.MILLISECONDS);
 
+        // 处理异步更新service状态任务
         UtilsAndCommons.SERVICE_UPDATE_EXECUTOR.submit(new UpdatedServiceProcessor());
 
         try {
@@ -105,6 +106,7 @@ public class ServiceManager implements RecordListener<Service> {
         return serviceMap.get(namespaceId);
     }
 
+    // 添加更新service任务
     public void addUpdatedService2Queue(String namespaceId, String serviceName, String serverIP, String checksum) {
         lock.lock();
         try {
@@ -128,6 +130,7 @@ public class ServiceManager implements RecordListener<Service> {
         return KeyBuilder.matchServiceMetaKey(key) && !KeyBuilder.matchSwitchKey(key);
     }
 
+    // 监听所有service的更新（包括新增）和删除，并未新增的service注册对应的监听器
     @Override
     public void onChange(String key, Service service) throws Exception {
         try {
@@ -145,10 +148,16 @@ public class ServiceManager implements RecordListener<Service> {
             Service oldDom = getService(service.getNamespaceId(), service.getName());
 
             if (oldDom != null) {
+                // 更新
+                // 主要更新集群信息
                 oldDom.update(service);
             } else {
+                // 新增
+                // 将新增的service添加到serviceMap
                 putService(service);
+                // 初始化
                 service.init();
+                // 添加service对应的监听器
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
                 Loggers.SRV_LOG.info("[NEW-SERVICE] {}", service.toJSON());
@@ -158,6 +167,7 @@ public class ServiceManager implements RecordListener<Service> {
         }
     }
 
+    // 监听service删除,会删除服务对应的instanceList信息
     @Override
     public void onDelete(String key) throws Exception {
         String namespace = KeyBuilder.getNamespace(key);
@@ -172,18 +182,23 @@ public class ServiceManager implements RecordListener<Service> {
         }
 
         if (service != null) {
+            // 销毁service
             service.destroy();
+            // 删除service对应的instanceList、并同步给集群
             consistencyService.remove(KeyBuilder.buildInstanceListKey(namespace, name, true));
 
             consistencyService.remove(KeyBuilder.buildInstanceListKey(namespace, name, false));
 
+            // 删除对应的监听器
             consistencyService.unlisten(KeyBuilder.buildServiceMetaKey(namespace, name), service);
             Loggers.SRV_LOG.info("[DEAD-SERVICE] {}", service.toJSON());
         }
 
+        // 删除service
         chooseServiceMap(namespace).remove(name);
     }
 
+    // 处理异步更新service任务
     private class UpdatedServiceProcessor implements Runnable {
         //get changed service from other server asynchronously
         @Override
@@ -201,6 +216,7 @@ public class ServiceManager implements RecordListener<Service> {
                     if (serviceKey == null) {
                         continue;
                     }
+                    // 提交更新任务
                     GlobalExecutor.submitServiceUpdate(new ServiceUpdater(serviceKey));
                 }
             } catch (Exception e) {
@@ -209,6 +225,7 @@ public class ServiceManager implements RecordListener<Service> {
         }
     }
 
+    // 向指定server请求service最新状态并更新
     private class ServiceUpdater implements Runnable {
 
         String namespaceId;
@@ -224,6 +241,7 @@ public class ServiceManager implements RecordListener<Service> {
         @Override
         public void run() {
             try {
+                // 向指定server请求最新的service状态信息，并更新本地
                 updatedHealthStatus(namespaceId, serviceName, serverIP);
             } catch (Exception e) {
                 Loggers.SRV_LOG.warn("[DOMAIN-UPDATER] Exception while update service: {} from {}, error: {}",
@@ -267,10 +285,13 @@ public class ServiceManager implements RecordListener<Service> {
         return matchList.size();
     }
 
+    // 向指定server请求最新的service状态信息，并更新本地、通知client
     public void updatedHealthStatus(String namespaceId, String serviceName, String serverIP) {
+        // 向远处节点请求key对应的service状态信息
         Message msg = synchronizer.get(serverIP, UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
         JSONObject serviceJson = JSON.parseObject(msg.getData());
 
+        // service集群的节点ip列表
         JSONArray ipList = serviceJson.getJSONArray("ips");
         Map<String, String> ipsMap = new HashMap<>(ipList.size());
         for (int i = 0; i < ipList.size(); i++) {
@@ -288,7 +309,7 @@ public class ServiceManager implements RecordListener<Service> {
 
         List<Instance> instances = service.allIPs();
         for (Instance instance : instances) {
-
+            // 更新instance健康状态
             Boolean valid = Boolean.parseBoolean(ipsMap.get(instance.toIPAddr()));
             if (valid != instance.isHealthy()) {
                 instance.setHealthy(valid);
@@ -298,6 +319,7 @@ public class ServiceManager implements RecordListener<Service> {
             }
         }
 
+        // 通知客户端服务状态变更
         pushService.serviceChanged(service);
         StringBuilder stringBuilder = new StringBuilder();
         List<Instance> allIps = service.allIPs();
@@ -372,6 +394,7 @@ public class ServiceManager implements RecordListener<Service> {
         return count;
     }
 
+    // 删除service,删除成功后通知listener，删除对应的instanceList
     public void easyRemoveService(String namespaceId, String serviceName) throws Exception {
 
         Service service = getService(namespaceId, serviceName);
@@ -419,7 +442,7 @@ public class ServiceManager implements RecordListener<Service> {
                 // isEphemeral
                 // 添加service
                 putService(service);
-                // 初始化：开启客户端信条坚持任务，调用cluster心跳任务
+                // 初始化：开启客户端心跳任务，并开启调用cluster心跳任务
                 service.init();
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
@@ -478,12 +501,13 @@ public class ServiceManager implements RecordListener<Service> {
 
         Service service = getService(namespaceId, serviceName);
 
+        // 更新instance列表
         List<Instance> instanceList = addIpAddresses(service, ephemeral, ips);
 
         Instances instances = new Instances();
         instances.setInstanceList(instanceList);
 
-        // 通知其他节点
+        // 更新本地，并通知其他节点
         consistencyService.put(key, instances);
     }
 
@@ -613,6 +637,7 @@ public class ServiceManager implements RecordListener<Service> {
         return getService(namespaceId, serviceName) != null;
     }
 
+    // 将新增的service添加到serviceMap
     public void putService(Service service) {
         if (!serviceMap.containsKey(service.getNamespaceId())) {
             synchronized (putServiceLock) {
@@ -624,6 +649,7 @@ public class ServiceManager implements RecordListener<Service> {
         serviceMap.get(service.getNamespaceId()).put(service.getName(), service);
     }
 
+    // 使用正则表达式查询namespaceId下符合的service
     public List<Service> searchServices(String namespaceId, String regex) {
         List<Service> result = new ArrayList<>();
         for (Map.Entry<String, Service> entry : chooseServiceMap(namespaceId).entrySet()) {
@@ -668,11 +694,14 @@ public class ServiceManager implements RecordListener<Service> {
         }
 
         if (StringUtils.isNotBlank(keyword)) {
+            // 使用正则表达式查询namespaceId下符合的service
             matchList = searchServices(namespaceId, ".*" + keyword + ".*");
         } else {
+            // 获取namespaceId下所有的service
             matchList = new ArrayList<>(chooseServiceMap(namespaceId).values());
         }
 
+        // 如果containedInstance，则使用containedInstance过滤
         if (StringUtils.isNotBlank(containedInstance)) {
 
             boolean contained;
@@ -700,6 +729,7 @@ public class ServiceManager implements RecordListener<Service> {
             }
         }
 
+        // 返回分页结果
         if (pageSize >= matchList.size()) {
             serviceList.addAll(matchList);
             return matchList.size();
@@ -723,6 +753,7 @@ public class ServiceManager implements RecordListener<Service> {
     public static class ServiceChecksum {
 
         public String namespaceId;
+        // 需要校验的service列表
         public Map<String, String> serviceName2Checksum = new HashMap<String, String>();
 
         public ServiceChecksum() {
@@ -749,8 +780,8 @@ public class ServiceManager implements RecordListener<Service> {
         @Override
         public void run() {
             try {
-
-                Map<String, Set<String>> allServiceNames = getAllServiceNames();
+                // 获取最新的serviceMap
+                Map<String/*nameSpace*/, Set<String>/*serviceNames*/> allServiceNames = getAllServiceNames();
 
                 if (allServiceNames.size() <= 0) {
                     //ignore
@@ -758,22 +789,25 @@ public class ServiceManager implements RecordListener<Service> {
                 }
 
                 for (String namespaceId : allServiceNames.keySet()) {
-
+                    // 为每个namespace创建一个校验服务
                     ServiceChecksum checksum = new ServiceChecksum(namespaceId);
 
                     for (String serviceName : allServiceNames.get(namespaceId)) {
+                        // 该服务不由当前节点负责响应
                         if (!distroMapper.responsible(serviceName)) {
                             continue;
                         }
 
+                        // 获取service详情
                         Service service = getService(namespaceId, serviceName);
 
                         if (service == null) {
                             continue;
                         }
 
+                        // 重新计算校验码
                         service.recalculateChecksum();
-
+                        // 添加到校验任务中
                         checksum.addItem(serviceName, service.getChecksum());
                     }
 
@@ -787,6 +821,7 @@ public class ServiceManager implements RecordListener<Service> {
                         return;
                     }
 
+                    // 发送给其他server
                     for (Server server : sameSiteServers) {
                         if (server.getKey().equals(NetUtils.localServer())) {
                             continue;

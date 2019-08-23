@@ -184,7 +184,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
             RaftPeer peer = peers.get(maxApprovePeer);
             peer.state = RaftPeer.State.LEADER;
 
-            // 如果本地节点选举为leader，更新状态
+            // leader发生了变更，更新状态
             if (!Objects.equals(leader, peer)) {
                 leader = peer;
                 // 发送leader选举完成事件
@@ -226,7 +226,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
                                 return 1;
                             }
 
-                            // 更新peer数据
+                            // 更新旧leader的数据
                             update(JSON.parseObject(response.getResponseBody(), RaftPeer.class));
 
                             return 0;
@@ -239,7 +239,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
             }
         }
 
-        // 更新candidate节点数据
+        // 更新candidate节点数据（切换为leader）
         return update(candidate);
     }
 
@@ -317,8 +317,10 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         }
 
         // replace raft peer set:
+        // 更新集群列表
         peers = tmpPeers;
 
+        // 接入集群后，标记集群内可用
         if (RunningConfig.getServerPort() > 0) {
             ready = true;
         }

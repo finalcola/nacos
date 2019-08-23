@@ -54,8 +54,10 @@ public class RaftStore {
 
     private String metaFileName = UtilsAndCommons.DATA_BASE_DIR + File.separator + "meta.properties";
 
+    // nacos_home/naming/data
     private String cacheDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
 
+    // 加载磁盘保存的datum
     public synchronized void loadDatums(RaftCore.Notifier notifier, ConcurrentMap<String, Datum> datums) throws Exception {
 
         Datum datum;
@@ -69,6 +71,7 @@ public class RaftStore {
                     datum = readDatum(datumFile, cache.getName());
                     if (datum != null) {
                         datums.put(datum.key, datum);
+                        // 更新事件
                         notifier.addTask(datum.key, ApplyAction.CHANGE);
                     }
                 }
@@ -141,7 +144,7 @@ public class RaftStore {
                 });
             }
 
-            // 服务元数据文件
+            // service元数据文件
             if (KeyBuilder.matchServiceMetaKey(file.getName())) {
 
                 Datum<Service> serviceDatum;
@@ -169,7 +172,7 @@ public class RaftStore {
                 return serviceDatum;
             }
 
-            // Instance列表文件
+            // InstanceList文件
             if (KeyBuilder.matchInstanceListKey(file.getName())) {
 
                 Datum<Instances> instancesDatum;
@@ -188,6 +191,7 @@ public class RaftStore {
                         Constants.DEFAULT_GROUP + Constants.SERVICE_INFO_SPLITER + serviceName;
 
                     instancesDatum.key = key;
+                    // 设置instances
                     instancesDatum.value = new Instances();
                     instancesDatum.value.setInstanceList(JSON.parseObject(jsonObject.getString("value"),
                         new TypeReference<List<Instance>>(){}));

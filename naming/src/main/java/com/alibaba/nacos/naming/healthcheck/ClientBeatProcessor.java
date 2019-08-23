@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Thread to update ephemeral instance triggered by client beat
+ * 用于处理临时节点的心跳信息
  *
  * @author nkorange
  */
@@ -70,7 +71,7 @@ public class ClientBeatProcessor implements Runnable {
         String clusterName = rsInfo.getCluster();
         int port = rsInfo.getPort();
         Cluster cluster = service.getClusterMap().get(clusterName);
-        // 集群内的instance列表
+        // 集群内的临时节点列表
         List<Instance> instances = cluster.allIPs(true);
 
         for (Instance instance : instances) {

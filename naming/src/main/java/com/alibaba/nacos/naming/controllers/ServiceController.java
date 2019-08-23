@@ -299,6 +299,7 @@ public class ServiceController {
         return result;
     }
 
+    // 其他server定时发送service状态信息，用于同步
     @RequestMapping(value = "/status", method = RequestMethod.POST)
     public String serviceStatus(HttpServletRequest request) throws Exception {
 
@@ -316,6 +317,7 @@ public class ServiceController {
         }
 
         try {
+            // 校验任务
             ServiceManager.ServiceChecksum checksums = JSON.parseObject(statuses, ServiceManager.ServiceChecksum.class);
             if (checksums == null) {
                 Loggers.SRV_LOG.warn("[DOMAIN-STATUS] receive malformed data: null");
@@ -336,6 +338,7 @@ public class ServiceController {
 
                 service.recalculateChecksum();
 
+                // 校验码不匹配，需要获取最新的service信息
                 if (!checksum.equals(service.getChecksum())) {
                     if (Loggers.SRV_LOG.isDebugEnabled()) {
                         Loggers.SRV_LOG.debug("checksum of {} is not consistent, remote: {}, checksum: {}, local: {}",

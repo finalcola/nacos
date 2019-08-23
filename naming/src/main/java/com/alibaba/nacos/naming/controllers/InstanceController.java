@@ -225,6 +225,7 @@ public class InstanceController {
         throw new NacosException(NacosException.NOT_FOUND, "no matched ip found!");
     }
 
+    // 维持临时节点
     @CanDistro
     @RequestMapping(value = "/beat", method = RequestMethod.PUT)
     public JSONObject beat(HttpServletRequest request) throws Exception {
@@ -273,11 +274,12 @@ public class InstanceController {
             serviceManager.registerInstance(namespaceId, serviceName, instance);
         }
 
-        // 获取对应的Service，处理客户端请求
+        // 获取对应的Service，处理client的心跳请求
         Service service = serviceManager.getService(namespaceId, serviceName);
         if (service == null) {
             throw new NacosException(NacosException.SERVER_ERROR, "service not found: " + serviceName + "@" + namespaceId);
         }
+        // 处理client发送的心跳
         service.processClientBeat(clientBeat);
         result.put("clientBeatInterval", instance.getInstanceHeartBeatInterval());
         return result;

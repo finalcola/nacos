@@ -45,6 +45,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
 
     private int defIPPort = -1;
 
+    // 用于检查集群内中非临时instance的健康状况，并通知client
     @JSONField(serialize = false)
     private HealthCheckTask checkTask;
 
@@ -116,6 +117,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         inited = true;
     }
 
+    // 关闭该集群内，停止健康检查任务
     public void destroy() {
         if (checkTask != null) {
             checkTask.setCancelled(true);
@@ -185,6 +187,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         return cluster;
     }
 
+    // 更新instance列表
     public void updateIPs(List<Instance> ips, boolean ephemeral) {
 
         Set<Instance> toUpdateInstances = ephemeral ? ephemeralInstances : persistentInstances;
@@ -194,7 +197,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         for (Instance ip : toUpdateInstances) {
             oldIPMap.put(ip.getDatumKey(), ip);
         }
-
+        // 获取发生了变更的instance
         List<Instance> updatedIPs = updatedIPs(ips, oldIPMap.values());
         if (updatedIPs.size() > 0) {
             for (Instance ip : updatedIPs) {
@@ -206,6 +209,8 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
                 if (!ip.isMarked()) {
                     ip.setHealthy(oldIP.isHealthy());
                 }
+
+                // 打印日志
 
                 if (ip.isHealthy() != oldIP.isHealthy()) {
                     // ip validation status updated
@@ -220,6 +225,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
             }
         }
 
+        // 新增的instance列表
         List<Instance> newIPs = subtract(ips, oldIPMap.values());
         if (newIPs.size() > 0) {
             Loggers.EVT_LOG.info("{} {SYNC} {IP-NEW} cluster: {}, new ips size: {}, content: {}",
@@ -230,8 +236,8 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
             }
         }
 
+        // 删除的instance
         List<Instance> deadIPs = subtract(oldIPMap.values(), ips);
-
         if (deadIPs.size() > 0) {
             Loggers.EVT_LOG.info("{} {SYNC} {IP-DEAD} cluster: {}, dead ips size: {}, content: {}",
                 getService().getName(), getName(), deadIPs.size(), deadIPs.toString());
@@ -243,6 +249,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
 
         toUpdateInstances = new HashSet<>(ips);
 
+        // 更新列表
         if (ephemeral) {
             ephemeralInstances = toUpdateInstances;
         } else {
@@ -250,9 +257,12 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         }
     }
 
+    // 获取两个集合中发生了变更的instance
     public List<Instance> updatedIPs(Collection<Instance> a, Collection<Instance> b) {
 
+        // 交集
         List<Instance> intersects = (List<Instance>) CollectionUtils.intersection(a, b);
+        // 将交集按照ip:port分组
         Map<String, Instance> stringIPAddressMap = new ConcurrentHashMap<>(intersects.size());
 
         for (Instance instance : intersects) {
@@ -298,6 +308,7 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
         return new ArrayList<>(instanceMap.values());
     }
 
+    // a - b
     public List<Instance> subtract(Collection<Instance> a, Collection<Instance> b) {
         Map<String, Instance> mapa = new HashMap<>(b.size());
         for (Instance o : b) {

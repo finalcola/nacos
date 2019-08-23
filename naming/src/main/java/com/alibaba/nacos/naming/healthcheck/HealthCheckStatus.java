@@ -28,9 +28,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author nacos
  */
 public class HealthCheckStatus {
+    // check任务是否进行
     public AtomicBoolean isBeingChecked = new AtomicBoolean(false);
+    // 失败次数
     public AtomicInteger checkFailCount = new AtomicInteger(0);
+    // 成功次数
     public AtomicInteger checkOKCount = new AtomicInteger(0);
+    // 往返时间
     public long checkRT = -1L;
 
     private static ConcurrentMap<String, HealthCheckStatus> statusMap = new ConcurrentHashMap<>();

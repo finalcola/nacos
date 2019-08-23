@@ -78,17 +78,21 @@ public class DistroController {
             throw new NacosException(NacosException.INVALID_PARAM, "receive empty entity!");
         }
 
+        // 解析
         Map<String, Datum<Instances>> dataMap =
             serializer.deserializeMap(entity.getBytes(), Instances.class);
 
         for (Map.Entry<String, Datum<Instances>> entry : dataMap.entrySet()) {
+            // 临时节点
             if (KeyBuilder.matchEphemeralInstanceListKey(entry.getKey())) {
                 String namespaceId = KeyBuilder.getNamespace(entry.getKey());
                 String serviceName = KeyBuilder.getServiceName(entry.getKey());
+                // service不存在且默认使用临时instance,则创建一个空service
                 if (!serviceManager.containService(namespaceId, serviceName)
                     && switchDomain.isDefaultInstanceEphemeral()) {
                     serviceManager.createEmptyService(namespaceId, serviceName, true);
                 }
+                // 同步到其他节点
                 consistencyService.onPut(entry.getKey(), entry.getValue().value);
             }
         }

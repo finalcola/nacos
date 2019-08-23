@@ -104,10 +104,10 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
         }
     }
 
-    // 处理心跳检测任务，会将任务添加到队列，等待调度
+    // 处理当前节点与集群内其他instance的心跳检测任务，会将任务添加到队列，等待调度
     @Override
     public void process(HealthCheckTask task) {
-        // 获取集群机器地址列表
+        // 获取集群中非临时instance列表
         List<Instance> ips = task.getCluster().allIPs(false);
 
         if (CollectionUtils.isEmpty(ips)) {
@@ -167,10 +167,10 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
     public void run() {
         while (true) {
             try {
-                // 处理任务
+                // 处理taskQueue中的任务，创建与instance的链接以及超时任务
                 processTask();
 
-                // 底层select
+                // selector
                 int readyCount = selector.selectNow();
                 if (readyCount <= 0) {
                     continue;
@@ -208,7 +208,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                     key.cancel();
                     key.channel().close();
 
-                    // 标记该ip心跳检查完成
+                    // 标记该ip心跳检查停止
                     beat.finishCheck();
                     return;
                 }
@@ -217,6 +217,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 if (key.isValid() && key.isConnectable()) {
                     //connected
                     channel.finishConnect();
+                    // 处理检查结果，如果状态变更会通知client
                     beat.finishCheck(true, false, System.currentTimeMillis() - beat.getTask().getStartTime(), "tcp:ok+");
                 }
 
@@ -284,16 +285,21 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
             ip.setBeingChecked(false);
         }
 
+        // 处理检查结果，如果状态变更会通知client
         public void finishCheck(boolean success, boolean now, long rt, String msg) {
+            // 更新往返时间
             ip.setCheckRT(System.currentTimeMillis() - startTime);
 
             // check healthy结果
             if (success) {
+                // 标记check失败，成功多次（3）后，会重新将instance标记为健康，并通知client
                 healthCheckCommon.checkOK(ip, task, msg);
             } else {
                 if (now) {
+                    // 标记check失败，更新instance健康状态，并通知client
                     healthCheckCommon.checkFailNow(ip, task, msg);
                 } else {
+                    // 标记check失败，大于阈值则更新instance健康状态，并通知client
                     healthCheckCommon.checkFail(ip, task, msg);
                 }
 
@@ -410,6 +416,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                 channel = SocketChannel.open();
                 channel.configureBlocking(false);
                 // only by setting this can we make the socket close event asynchronous
+                // 底层链接需要等待数据发送完成后再关闭
                 channel.socket().setSoLinger(false, -1);
                 channel.socket().setReuseAddress(true);
                 channel.socket().setKeepAlive(true);

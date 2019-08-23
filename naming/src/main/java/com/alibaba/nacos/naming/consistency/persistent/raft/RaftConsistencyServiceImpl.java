@@ -61,18 +61,27 @@ public class RaftConsistencyServiceImpl implements PersistentConsistencyService 
         }
     }
 
+    /**
+     * 删除service和instanceList(根据key区分)的入口
+     * 如果删除service，再删除成功后，会通知listener继续删除instanceList
+     */
     @Override
     public void remove(String key) throws NacosException {
         try {
+            // 删除instanceList
             if (KeyBuilder.matchInstanceListKey(key) && !raftCore.isLeader()) {
-                // 删除instance，不会进行校验
+                // 删除instanceList，不会进行校验
                 Datum datum = new Datum();
                 datum.key = key;
+                // 删除instanceList
                 raftCore.onDelete(datum.key, peers.getLeader());
+                // 销毁注册的监听器
                 raftCore.unlistenAll(key);
                 return;
             }
+            // 删除本地service，并发送给其他server
             raftCore.signalDelete(key);
+            // 删除listener
             raftCore.unlistenAll(key);
         } catch (Exception e) {
             Loggers.RAFT.error("Raft remove failed.", e);

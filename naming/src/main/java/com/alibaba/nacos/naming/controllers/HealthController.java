@@ -73,6 +73,7 @@ public class HealthController {
         return result;
     }
 
+    // 手动设置instance的健康状况
     @CanDistro
     @RequestMapping(value = {"", "/instance"}, method = RequestMethod.PUT)
     public String update(HttpServletRequest request) throws Exception {
@@ -101,7 +102,9 @@ public class HealthController {
 
         Service service = serviceManager.getService(namespaceId, serviceName);
         // Only health check "none" need update health status with api
+        // 只有healthCheck为"none"的集群才需要通过API手动设置
         if (HealthCheckType.NONE.name().equals(service.getClusterMap().get(clusterName).getHealthChecker().getType())) {
+            // 手动更新指定instance的健康状况
             for (Instance instance : service.allIPs(Lists.newArrayList(clusterName))) {
                 if (instance.getIp().equals(ip) && instance.getPort() == port) {
                     instance.setHealthy(valid);
@@ -113,15 +116,18 @@ public class HealthController {
                 }
             }
         } else {
+            // 通过后台任务更新健康情况，不支持手动设置
             throw new IllegalArgumentException("health check is still working, service: " + serviceName);
         }
 
         return "ok";
     }
 
+    // 返回当前支持的healthCheckerClass信息
     @ResponseBody
     @RequestMapping(value = "checkers", method = RequestMethod.GET)
     public ResponseEntity checkers() {
+        // 获取当前支持的healthCheckerClass
         List<Class> classes = HealthCheckType.getLoadedHealthCheckerClasses();
         Map<String, AbstractHealthChecker> checkerMap = new HashMap<>(8);
         for (Class clazz : classes) {

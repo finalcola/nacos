@@ -15,6 +15,7 @@
  */
 package com.alibaba.nacos.example;
 
+import java.io.IOException;
 import java.util.Properties;
 
 import com.alibaba.nacos.api.exception.NacosException;
@@ -29,30 +30,33 @@ import com.alibaba.nacos.api.naming.listener.NamingEvent;
  */
 public class NamingExample {
 
-    public static void main(String[] args) throws NacosException {
+    public static void main(String[] args) throws NacosException, IOException {
 
         Properties properties = new Properties();
         properties.setProperty("serverAddr", "localhost");
-        properties.setProperty("namespace", "test");
+        properties.setProperty("namespace", "public");
 
         NamingService naming = NamingFactory.createNamingService(properties);
 
-        naming.registerInstance("nacos.test.3", "11.11.11.11", 8888, "TEST1");
+        naming.registerInstance("finnalcola.test", "11.11.11.11", 8888, "TEST1");
 
-        naming.registerInstance("nacos.test.3", "2.2.2.2", 9999, "DEFAULT");
+        naming.registerInstance("finnalcola.test", "2.2.2.2", 9999, "DEFAULT");
 
-        System.out.println(naming.getAllInstances("nacos.test.3"));
+        System.out.println(naming.getAllInstances("finnalcola.test"));
 
-        naming.deregisterInstance("nacos.test.3", "2.2.2.2", 9999, "DEFAULT");
+//        naming.deregisterInstance("finnalcola.test", "2.2.2.2", 9999, "DEFAULT");
 
-        System.out.println(naming.getAllInstances("nacos.test.3"));
+//        System.out.println(naming.getAllInstances("finnalcola.test"));
 
-        naming.subscribe("nacos.test.3", new EventListener() {
+        naming.subscribe("finnalcola.test", new EventListener() {
             @Override
             public void onEvent(Event event) {
                 System.out.println(((NamingEvent)event).getServiceName());
                 System.out.println(((NamingEvent)event).getInstances());
             }
         });
+
+        System.in.read();
+        System.out.println("shutdown....");
     }
 }
