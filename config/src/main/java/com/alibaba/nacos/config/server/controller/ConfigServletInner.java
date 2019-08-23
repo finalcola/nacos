@@ -76,6 +76,7 @@ public class ConfigServletInner {
         }
 
         // else 兼容短轮询逻辑
+        // 比较md5，检查是否配置发生了更新
         List<String> changedGroups = MD5Util.compareMd5(request, response, clientMd5Map);
 
         // 兼容短轮询result

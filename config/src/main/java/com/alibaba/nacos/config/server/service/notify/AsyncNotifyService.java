@@ -130,7 +130,7 @@ public class AsyncNotifyService extends AbstractEventListener {
                 String targetIp = task.getTargetIP();
                 if (serverListService.getServerList().contains(
                     targetIp)) {
-                    // 发送的节点不健康，则重新假如通知队列；否则直接发送
+                    // 发送的节点不健康，则重新加入通知队列；否则直接发送
                     if (serverListService.isHealthCheck()
                         && ServerListService.getServerListUnhealth().contains(targetIp)) {
                         // target ip 不健康，则放入通知列表中

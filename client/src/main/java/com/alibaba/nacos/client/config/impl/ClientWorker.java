@@ -346,6 +346,7 @@ public class ClientWorker {
      * 从Server获取值变化了的DataID列表。返回的对象里只有dataId和group是有效的。 保证不返回NULL。
      */
     List<String> checkUpdateDataIds(List<CacheData> cacheDatas, List<String> inInitializingCacheList) throws IOException {
+        // 记录groupKey和MD5（发送给server检查是否发送变更）
         StringBuilder sb = new StringBuilder();
         // 根据groupData构造groupKey(dataId,group)
         for (CacheData cacheData : cacheDatas) {
@@ -372,7 +373,7 @@ public class ClientWorker {
     }
 
     /**
-     * 从Server获取值变化了的DataID列表。返回的对象里只有dataId和group是有效的。 保证不返回NULL。
+     * 从Server检查值变化了的DataID列表。返回的对象里只有dataId和group是有效的。 保证不返回NULL。
      */
     List<String> checkUpdateConfigStr(String probeUpdateString, boolean isInitializingCacheList) throws IOException {
 
@@ -505,7 +506,7 @@ public class ClientWorker {
         enableRemoteSyncConfig = Boolean.parseBoolean(properties.getProperty(PropertyKeyConst.ENABLE_REMOTE_SYNC_CONFIG));
     }
 
-    // 长轮询任务，请求groupKey(dataId,group)对应的内容，保存到快照文件和缓存
+    // 长轮询任务，请求groupKey(dataId,group)对应的内容，检查更新，并保存到快照文件和缓存
     class LongPollingRunnable implements Runnable {
         private int taskId;
 

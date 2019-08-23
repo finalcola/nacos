@@ -263,6 +263,7 @@ public class ConfigController {
             throw new IllegalArgumentException("invalid probeModify");
         }
 
+        // client请求参数，包含groupKey(dataId\group\md5),用于server检查data是否发生了变更（比较MD5）
         probeModify = URLDecoder.decode(probeModify, Constants.ENCODE);
 
         Map<String, String> clientMd5Map;
