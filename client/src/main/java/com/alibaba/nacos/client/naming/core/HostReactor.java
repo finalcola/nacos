@@ -44,14 +44,18 @@ public class HostReactor {
 
     private Map<String, ServiceInfo> serviceInfoMap;
 
+    // 记录发送更新请求，等待响应的service
     private Map<String, Object> updatingMap;
 
+    // 接收server push
     private PushReceiver pushReceiver;
 
+    // 通知listener
     private EventDispatcher eventDispatcher;
 
     private NamingProxy serverProxy;
 
+    // 故障时，切换使用本地缓存
     private FailoverReactor failoverReactor;
 
     private String cacheDir;

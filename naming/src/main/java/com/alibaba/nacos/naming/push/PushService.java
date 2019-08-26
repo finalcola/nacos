@@ -134,7 +134,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         this.applicationContext = applicationContext;
     }
 
-    // service发生更新
+    // service更新事件，将更新推送给client
     @Override
     public void onApplicationEvent(ServiceChangeEvent event) {
         Service service = event.getService();
@@ -334,7 +334,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             return;
         }
 
-        // 通知服务变更事件
+        // 通知服务变更事件(PushService本身也监听了该事件)
         this.applicationContext.publishEvent(new ServiceChangeEvent(this, service));
     }
 
