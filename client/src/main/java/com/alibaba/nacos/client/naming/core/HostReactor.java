@@ -44,29 +44,14 @@ public class HostReactor {
 
     private Map<String, ServiceInfo> serviceInfoMap;
 
-    /**
-     * 标记serviceInfo正在更新
-     */
     private Map<String, Object> updatingMap;
 
-    /**
-     * 接收server push信息的组件，并会将变更通知给相关listener
-     */
     private PushReceiver pushReceiver;
 
-    /**
-     * 事件通知组件
-     */
     private EventDispatcher eventDispatcher;
 
-    /**
-     * API代理类
-     */
     private NamingProxy serverProxy;
 
-    /**
-     * 故障转移开关、缓存相关组件
-     */
     private FailoverReactor failoverReactor;
 
     private String cacheDir;
@@ -112,34 +97,31 @@ public class HostReactor {
         return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
     }
 
-    // 处理接收的service信息
     public ServiceInfo processServiceJSON(String json) {
         ServiceInfo serviceInfo = JSON.parseObject(json, ServiceInfo.class);
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
-        // 返回的数据错误
+        // 忽略错误响应
         if (serviceInfo.getHosts() == null || !serviceInfo.validate()) {
             //empty or error push, just ignore
             return oldService;
         }
 
-        if (oldService != null) {
-            // 更新serviceInfo
+        boolean changed = false;
 
+        if (oldService != null) {
+            // 接收到过期的数据
             if (oldService.getLastRefTime() > serviceInfo.getLastRefTime()) {
                 NAMING_LOGGER.warn("out of date data received, old-t: " + oldService.getLastRefTime()
                     + ", new-t: " + serviceInfo.getLastRefTime());
             }
 
-            // 更新serviceInfo
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
 
-            // 原host列表
             Map<String, Instance> oldHostMap = new HashMap<String, Instance>(oldService.getHosts().size());
             for (Instance host : oldService.getHosts()) {
                 oldHostMap.put(host.toInetAddr(), host);
             }
 
-            // 新host列表
             Map<String, Instance> newHostMap = new HashMap<String, Instance>(serviceInfo.getHosts().size());
             for (Instance host : serviceInfo.getHosts()) {
                 newHostMap.put(host.toInetAddr(), host);
@@ -178,46 +160,49 @@ public class HostReactor {
 
             }
 
-            // 打印新增、删除、更改的hosts
             if (newHosts.size() > 0) {
+                changed = true;
                 NAMING_LOGGER.info("new ips(" + newHosts.size() + ") service: "
-                    + serviceInfo.getName() + " -> " + JSON.toJSONString(newHosts));
+                    + serviceInfo.getKey() + " -> " + JSON.toJSONString(newHosts));
             }
 
             if (remvHosts.size() > 0) {
+                changed = true;
                 NAMING_LOGGER.info("removed ips(" + remvHosts.size() + ") service: "
-                    + serviceInfo.getName() + " -> " + JSON.toJSONString(remvHosts));
+                    + serviceInfo.getKey() + " -> " + JSON.toJSONString(remvHosts));
             }
 
             if (modHosts.size() > 0) {
+                changed = true;
                 NAMING_LOGGER.info("modified ips(" + modHosts.size() + ") service: "
-                    + serviceInfo.getName() + " -> " + JSON.toJSONString(modHosts));
+                    + serviceInfo.getKey() + " -> " + JSON.toJSONString(modHosts));
             }
 
             serviceInfo.setJsonFromServer(json);
 
-            // 如果列表发生了修改，发送service更新通知，并写入磁盘
+            // 如果发生了更新，则更新本地磁盘的文件，并通知listener
             if (newHosts.size() > 0 || remvHosts.size() > 0 || modHosts.size() > 0) {
                 eventDispatcher.serviceChanged(serviceInfo);
                 DiskCache.write(serviceInfo, cacheDir);
             }
 
         } else {
-            NAMING_LOGGER.info("new ips(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getName() + " -> " + JSON
+            // 保存新增的serviceInfo，写盘并通知listener
+            changed = true;
+            NAMING_LOGGER.info("init new ips(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> " + JSON
                 .toJSONString(serviceInfo.getHosts()));
-            // 新增的instance
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
-            // 通知服务变更
             eventDispatcher.serviceChanged(serviceInfo);
             serviceInfo.setJsonFromServer(json);
-            // 写入磁盘
             DiskCache.write(serviceInfo, cacheDir);
         }
 
         MetricsMonitor.getServiceInfoMapSizeMonitor().set(serviceInfoMap.size());
 
-        NAMING_LOGGER.info("current ips:(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getName() +
-            " -> " + JSON.toJSONString(serviceInfo.getHosts()));
+        if (changed) {
+            NAMING_LOGGER.info("current ips:(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() +
+                " -> " + JSON.toJSONString(serviceInfo.getHosts()));
+        }
 
         return serviceInfo;
     }
@@ -229,43 +214,36 @@ public class HostReactor {
         return serviceInfoMap.get(key);
     }
 
-    /**
-     * 直接从server查询，不经过本地缓存且不注册到server
-     */
     public ServiceInfo getServiceInfoDirectlyFromServer(final String serviceName, final String clusters) throws NacosException {
-        String result = serverProxy.queryList(serviceName, clusters, 0/*不会注册到server*/, false);
+        String result = serverProxy.queryList(serviceName, clusters, 0, false);
         if (StringUtils.isNotEmpty(result)) {
             return JSON.parseObject(result, ServiceInfo.class);
         }
         return null;
     }
 
-    // 获取serviceInfo
     public ServiceInfo getServiceInfo(final String serviceName, final String clusters) {
 
         NAMING_LOGGER.debug("failover-mode: " + failoverReactor.isFailoverSwitch());
         String key = ServiceInfo.getKey(serviceName, clusters);
-        // 开启故障转移，则从本地缓存获取
         if (failoverReactor.isFailoverSwitch()) {
             return failoverReactor.getService(key);
         }
 
-        // 从serviceInfoMap中读取
         ServiceInfo serviceObj = getServiceInfo0(serviceName, clusters);
 
+        // 未缓存过的service，则更新service
         if (null == serviceObj) {
-            // 创建serviceInfo并更新内容
             serviceObj = new ServiceInfo(serviceName, clusters);
 
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
 
             updatingMap.put(serviceName, new Object());
-            // 请求API，更新serviceInfo信息
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
 
         } else if (updatingMap.containsKey(serviceName)) {
-            // 正在进行更新操作
+            // 如果正在对该服务进行更新，则等待该服务完成
             if (UPDATE_HOLD_INTERVAL > 0) {
                 // hold a moment waiting for update finish
                 synchronized (serviceObj) {
@@ -277,13 +255,13 @@ public class HostReactor {
                 }
             }
         }
-
-        // 提交定时更新任务（定时刷新serviceInfo）
+        // 添加定时更新调度任务
         scheduleUpdateIfAbsent(serviceName, clusters);
 
         return serviceInfoMap.get(serviceObj.getKey());
     }
 
+    // 添加定时更新调度任务
     public void scheduleUpdateIfAbsent(String serviceName, String clusters) {
         if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
             return;
@@ -293,20 +271,20 @@ public class HostReactor {
             if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
                 return;
             }
-
-            // 提交定时更新任务（定时刷新serviceInfo）
+            // 添加定时更新调度任务
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, clusters));
             futureMap.put(ServiceInfo.getKey(serviceName, clusters), future);
         }
     }
 
+    // 更新service信息
     public void updateServiceNow(String serviceName, String clusters) {
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
-            // 请求API,获取instance列表(会携带当前客户端的udpPort，用于接收push请求)
+
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUDPPort(), false);
+            // 处理响应，会刷新磁盘缓存以及通知listener
             if (StringUtils.isNotEmpty(result)) {
-                // 解析返回结果
                 processServiceJSON(result);
             }
         } catch (Exception e) {
@@ -328,9 +306,7 @@ public class HostReactor {
         }
     }
 
-    /**
-     * 定时刷新任务
-     */
+    // 每个service都会对应一个定时更新的任务，不断查询最新的service信息
     public class UpdateTask implements Runnable {
         long lastRefTime = Long.MAX_VALUE;
         private String clusters;
@@ -344,26 +320,25 @@ public class HostReactor {
         @Override
         public void run() {
             try {
+                // 获取本地的serviceInfo
                 ServiceInfo serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
-
+                // 请求最新的serviceInfo
                 if (serviceObj == null) {
-                    // 更新serviceInfo
                     updateServiceNow(serviceName, clusters);
                     executor.schedule(this, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
                     return;
                 }
-
+                // 更新
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
-                    // 更新service列表
                     updateServiceNow(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
                 } else {
                     // if serviceName already updated by push, we should not override it
                     // since the push data may be different from pull through force push
+                    // 仅发生查询请求，不处理响应，避免覆盖
                     refreshOnly(serviceName, clusters);
                 }
 
-                // 继续调度当前任务，定时刷新本地serviceInfo
                 executor.schedule(this, serviceObj.getCacheMillis(), TimeUnit.MILLISECONDS);
 
                 lastRefTime = serviceObj.getLastRefTime();
