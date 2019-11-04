@@ -72,6 +72,7 @@ public class ConfigServletInner {
         // 长轮询
         if (LongPollingService.isSupportLongPolling(request)) {
             longPollingService.addLongPollingClient(request, response, clientMd5Map, probeRequestSize);
+            // 返回值只是作为中断后面的流程，不是响应
             return HttpServletResponse.SC_OK + "";
         }
 

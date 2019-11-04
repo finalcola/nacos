@@ -268,7 +268,7 @@ public class ConfigController {
 
         Map<String, String> clientMd5Map;
         try {
-            // 解析传输协议
+            // 解析传输报文
             clientMd5Map = MD5Util.getClientMd5Map(probeModify);
         } catch (Throwable e) {
             throw new IllegalArgumentException("invalid probeModify");

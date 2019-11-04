@@ -458,7 +458,7 @@ public class ClientWorker {
             }
         });
 
-        // 定时检查config的变更情况
+        // 定时检查cacheData数量，如果超出限制会新增从长轮询任务
         executor.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
@@ -481,6 +481,7 @@ public class ClientWorker {
         enableRemoteSyncConfig = Boolean.parseBoolean(properties.getProperty(PropertyKeyConst.ENABLE_REMOTE_SYNC_CONFIG));
     }
 
+    // 长轮询任务，用于定期拉取最新的配置信息
     class LongPollingRunnable implements Runnable {
         private int taskId;
 

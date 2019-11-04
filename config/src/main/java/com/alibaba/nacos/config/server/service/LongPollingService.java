@@ -224,6 +224,7 @@ public class LongPollingService extends AbstractEventListener {
          */
         long timeout = Math.max(10000, Long.parseLong(str) - delayTime);
         if (isFixedPolling()) {
+            // 固定时间的轮询时间长度
             timeout = Math.max(10000, getFixedPollingInterval());
             // do nothing but set fix polling timeout
         } else {
