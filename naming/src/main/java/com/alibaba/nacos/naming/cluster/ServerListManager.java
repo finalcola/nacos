@@ -84,7 +84,7 @@ public class ServerListManager {
 
     @PostConstruct
     public void init() {
-        // 更新server列表任务
+        // 更新server列表任务(配置文件或systemEnv读取)
         GlobalExecutor.registerServerListUpdater(new ServerListUpdater());
         // 更新本地server心跳，向其它存活server发送本地server状态信息
         GlobalExecutor.registerServerStatusReporter(new ServerStatusReporter(), 5000);
@@ -191,6 +191,7 @@ public class ServerListManager {
         return distroConfig;
     }
 
+    // 接收到其他节点或本地节点的心跳（参数包含其状态：site:ip:lastReportTime:weight）
     public synchronized void onReceiveServerStatus(String configInfo) {
 
         Loggers.SRV_LOG.info("receive config info: {}", configInfo);
@@ -240,7 +241,7 @@ public class ServerListManager {
                 distroConfig.put(server.getSite(), list);
             }
 
-            // 更新distroConfig中site server列表中的server状态(重复次数代表权重)
+            // 更新distroConfig中site server列表中的server状态
             for (Server s : list) {
                 String serverId = s.getKey() + "_" + s.getSite();
                 String newServerId = server.getKey() + "_" + server.getSite();
@@ -271,7 +272,7 @@ public class ServerListManager {
         }
 
         //local site servers
-        // 更新healthyServers
+        // 更新healthyServers(重复次数代表权重)
         List<String> allLocalSiteSrvs = new ArrayList<>();
         for (Server server : servers) {
 
@@ -455,6 +456,7 @@ public class ServerListManager {
                     }
                 }
 
+                // CPU个数/2 作为权重
                 int weight = Runtime.getRuntime().availableProcessors() / 2;
                 if (weight <= 0) {
                     weight = 1;

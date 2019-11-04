@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Data sync task dispatcher
  * 分发数据同步任务
- *
+ * 内部保存n个任务调度器（数量为CPU个数），提交的任务会被均匀分发到调度器
  * @author nkorange
  * @since 1.0.0
  */
@@ -98,7 +98,7 @@ public class TaskDispatcher {
             while (true) {
 
                 try {
-
+                    // 从任务队列拉取任务
                     String key = queue.poll(partitionConfig.getTaskDispatchPeriod(),
                         TimeUnit.MILLISECONDS);
 

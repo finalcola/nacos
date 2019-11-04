@@ -66,6 +66,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
      */
     private static final long TCP_KEEP_ALIVE_MILLIS = 0;
 
+    // 用于检查连接的线程池
     private static ScheduledExecutorService TCP_CHECK_EXECUTOR
         = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         @Override

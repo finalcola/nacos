@@ -94,7 +94,8 @@ public class RaftCore {
 
     private volatile Map<String, List<RecordListener>> listeners = new ConcurrentHashMap<>();
 
-    private volatile ConcurrentMap<String, Datum> datums = new ConcurrentHashMap<>();
+    // 保存Datum信息（key、record）
+    private volatile ConcurrentMap<String/*datum.key*/, Datum> datums = new ConcurrentHashMap<>();
 
     /**
      * 集群节点信息管理
@@ -116,7 +117,7 @@ public class RaftCore {
     @Autowired
     private RaftStore raftStore;
 
-    // 将数据更新、删除通知给响应的监听器
+    // 将数据更新、删除通知给响应的监听器（更新service和instance列表）
     public volatile Notifier notifier = new Notifier();
 
     private boolean initialized = false;
@@ -152,7 +153,7 @@ public class RaftCore {
 
         // master选举任务
         GlobalExecutor.registerMasterElection(new MasterElection());
-        // 心跳任务
+        // 心跳任务（同时会同步数据）
         GlobalExecutor.registerHeartbeat(new HeartBeat());
 
         Loggers.RAFT.info("timer started: leader timeout ms: {}, heart-beat timeout ms: {}",
@@ -183,6 +184,7 @@ public class RaftCore {
         try {
             OPERATE_LOCK.lock();
             long start = System.currentTimeMillis();
+            // 使用Datum封装record
             final Datum datum = new Datum();
             datum.key = key;
             datum.value = value;
@@ -303,7 +305,7 @@ public class RaftCore {
             throw new IllegalStateException("received empty datum");
         }
 
-        // 非leader节点
+        // 请求来自非leader节点
         if (!peers.isLeader(source.ip)) {
             Loggers.RAFT.warn("peer {} tried to publish data but wasn't leader, leader: {}",
                 JSON.toJSONString(source), JSON.toJSONString(getLeader()));
@@ -311,7 +313,7 @@ public class RaftCore {
                 "data but wasn't leader");
         }
 
-        // remotePeer版本比当前版本小
+        // remotePeer版本比当前版本小,过时的请求
         if (source.term.get() < local.term.get()) {
             Loggers.RAFT.warn("out of date publish, pub-term: {}, cur-term: {}",
                 JSON.toJSONString(source), JSON.toJSONString(local));
@@ -435,6 +437,7 @@ public class RaftCore {
             Loggers.RAFT.info("leader timeout, start voting,leader: {}, term: {}",
                 JSON.toJSONString(getLeader()), local.term);
 
+            // 重置集群状态，将投票置空
             peers.reset();
 
             // 版本号
@@ -485,12 +488,12 @@ public class RaftCore {
 
         // 本地peer
         RaftPeer local = peers.get(NetUtils.localServer());
-        // 收到小于当前版本的请求
+        // 收到小于当前版本的请求, 返回当前集群的leader
         if (remote.term.get() <= local.term.get()) {
             String msg = "received illegitimate vote" +
                 ", voter-term:" + remote.term + ", votee-term:" + local.term;
 
-            // 选举自己
+            // leader竞争：当前节点也是CADIDATE状态，给自己投票
             Loggers.RAFT.info(msg);
             if (StringUtils.isEmpty(local.voteFor)) {
                 local.voteFor = local.ip;
@@ -612,7 +615,7 @@ public class RaftCore {
                                 return 1;
                             }
 
-                            // 更新peer信息
+                            // 其他节点会返回自身peer信息，用于更新
                             peers.update(JSON.parseObject(response.getResponseBody(), RaftPeer.class));
                             Loggers.RAFT.info("receive beat response from: {}", url);
                             return 0;
@@ -677,7 +680,7 @@ public class RaftCore {
         local.resetLeaderDue();
         local.resetHeartbeatDue();
 
-        // 投票后更新leader节点
+        // 投票后更新leader节点，修改旧leader信息
         peers.makeLeader(remote);
 
         Map<String, Integer> receivedKeysMap = new HashMap<>(datums.size());
@@ -719,7 +722,7 @@ public class RaftCore {
                         continue;
                     }
 
-                    // 记录本地节点中过期的数据
+                    // 记录本地节点中不存在或过期的数据
                     if (!(datums.containsKey(datumKey) && datums.get(datumKey).timestamp.get() >= timestamp)) {
                         batch.add(datumKey);
                     }

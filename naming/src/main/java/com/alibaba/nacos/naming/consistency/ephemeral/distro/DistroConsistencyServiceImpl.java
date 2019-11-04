@@ -174,7 +174,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @Override
     public void put(String key, Record value) throws NacosException {
-        // 更新datum，并通知listener
+        // 更新datum，并通知listener（Service会更新instance列表，并push给client）
         onPut(key, value);
         // 异步方式将变更的数据同步给其他server
         taskDispatcher.addTask(key);
@@ -190,6 +190,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
         return dataStore.get(key);
     }
 
+    // 更新节点并push通知
     public void onPut(String key, Record value) {
 
         // 临时节点，封装为Datum后存储到dataStore
@@ -205,7 +206,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             return;
         }
 
-        // 添加修改事件
+        // 添加更新事件，后续会通知Service更新节点并push更新
         notifier.addTask(key, ApplyAction.CHANGE);
     }
 

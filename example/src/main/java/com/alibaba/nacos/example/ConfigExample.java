@@ -17,6 +17,7 @@ package com.alibaba.nacos.example;
 
 import java.util.Properties;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.config.ConfigService;
@@ -30,11 +31,12 @@ import com.alibaba.nacos.api.exception.NacosException;
  */
 public class ConfigExample {
 
-    public static void main(String[] args) throws NacosException, InterruptedException {
+    public static void main(String[] args) throws Exception {
         String serverAddr = "localhost";
         String dataId = "test";
         String group = "DEFAULT_GROUP";
         Properties properties = new Properties();
+        properties.setProperty("namespace", "b457ece8-efaa-46e8-bd00-4245be31026b");
         properties.put("serverAddr", serverAddr);
         ConfigService configService = NacosFactory.createConfigService(properties);
         String content = configService.getConfig(dataId, group, 5000);
@@ -50,21 +52,10 @@ public class ConfigExample {
                 return null;
             }
         });
-
         boolean isPublishOk = configService.publishConfig(dataId, group, "content");
         System.out.println(isPublishOk);
 
-        Thread.sleep(3000);
-        content = configService.getConfig(dataId, group, 5000);
-        System.out.println(content);
-
-        boolean isRemoveOk = configService.removeConfig(dataId, group);
-        System.out.println(isRemoveOk);
-        Thread.sleep(3000);
-
-        content = configService.getConfig(dataId, group, 5000);
-        System.out.println(content);
-        Thread.sleep(600000);
-
+        System.in.read();
+        System.out.println("closing");
     }
 }

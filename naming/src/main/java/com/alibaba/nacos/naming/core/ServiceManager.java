@@ -444,9 +444,13 @@ public class ServiceManager implements RecordListener<Service> {
                 putService(service);
                 // 初始化：开启客户端心跳任务，并开启调用cluster心跳任务
                 service.init();
+                // 将service作为listener添加到一致性服务的listener列表中
+                // service会监听Instances的变更
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
             } else {
+                // 对于非临时节点，需要一致性协议同步后才算是真正添加成功
+                // 其添加到serviceManager和init操作，会在一致性同步成功后再listener（ServiceManager）中执行
                 addOrReplaceService(service);
             }
         }
@@ -501,9 +505,10 @@ public class ServiceManager implements RecordListener<Service> {
 
         Service service = getService(namespaceId, serviceName);
 
-        // 更新instance列表
+        // 创建最新的instance列表
         List<Instance> instanceList = addIpAddresses(service, ephemeral, ips);
 
+        // 封装为Instances类型，会将通知发给相应的Service对象
         Instances instances = new Instances();
         instances.setInstanceList(instanceList);
 
@@ -565,7 +570,7 @@ public class ServiceManager implements RecordListener<Service> {
             map.put(instance.toIPAddr(), instance);
         }
         if (datum != null) {
-            // 返回datum中保存的instance列表
+            // 返回datum中保存的instance列表(更新healthy和lastBeat)
             oldInstanceMap = setValid(((Instances) datum.value).getInstanceList(), map);
         }
 

@@ -32,6 +32,9 @@ import java.util.concurrent.*;
 import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
+ * 获取并维护service信息
+ * 主动轮询+server push
+ * 故障转移时读取本地缓存文件
  * @author xuanyin
  */
 public class HostReactor {
@@ -40,8 +43,10 @@ public class HostReactor {
 
     private static final long UPDATE_HOLD_INTERVAL = 5000L;
 
+    // 标识是否在请求最新的服务
     private final Map<String, ScheduledFuture<?>> futureMap = new HashMap<String, ScheduledFuture<?>>();
 
+    // 维护service信息
     private Map<String, ServiceInfo> serviceInfoMap;
 
     // 记录发送更新请求，等待响应的service
@@ -101,6 +106,7 @@ public class HostReactor {
         return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
     }
 
+    // 处理server返回的service信息，如果存在新增、修改、删除的节点则保存最新的serviceInfo，写盘并通知listener
     public ServiceInfo processServiceJSON(String json) {
         ServiceInfo serviceInfo = JSON.parseObject(json, ServiceInfo.class);
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
@@ -230,6 +236,7 @@ public class HostReactor {
 
         NAMING_LOGGER.debug("failover-mode: " + failoverReactor.isFailoverSwitch());
         String key = ServiceInfo.getKey(serviceName, clusters);
+        // 故障转移
         if (failoverReactor.isFailoverSwitch()) {
             return failoverReactor.getService(key);
         }
@@ -243,6 +250,7 @@ public class HostReactor {
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
 
             updatingMap.put(serviceName, new Object());
+            // 立即发送获取service的请求
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
 
@@ -285,7 +293,7 @@ public class HostReactor {
     public void updateServiceNow(String serviceName, String clusters) {
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
-
+            // 获取服务列表时，会发送udp端口，用来接收push通知
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUDPPort(), false);
             // 处理响应，会刷新磁盘缓存以及通知listener
             if (StringUtils.isNotEmpty(result)) {

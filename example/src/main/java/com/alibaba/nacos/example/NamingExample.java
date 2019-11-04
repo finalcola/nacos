@@ -31,24 +31,22 @@ import com.alibaba.nacos.api.naming.listener.NamingEvent;
 public class NamingExample {
 
     public static void main(String[] args) throws NacosException, IOException {
-
+        // 配置（地址、group）
         Properties properties = new Properties();
-        properties.setProperty("serverAddr", "localhost");
+        properties.setProperty("serverAddr", "localhost:8848");
         properties.setProperty("namespace", "public");
 
         NamingService naming = NamingFactory.createNamingService(properties);
 
-        naming.registerInstance("finnalcola.test", "11.11.11.11", 8888, "TEST1");
+        naming.registerInstance("finalcola.test", "1.1.1.1", 2020, "TEST1");
 
-        naming.registerInstance("finnalcola.test", "2.2.2.2", 9999, "DEFAULT");
+        naming.registerInstance("finalcola.test", "2.2.2.2", 9999, "DEFAULT");
 
-        System.out.println(naming.getAllInstances("finnalcola.test"));
+        System.out.println(naming.getAllInstances("finalcola.test"));
 
-//        naming.deregisterInstance("finnalcola.test", "2.2.2.2", 9999, "DEFAULT");
+//        naming.deregisterInstance("finalcola.test", "2.2.2.2", 9999, "DEFAULT");
 
-//        System.out.println(naming.getAllInstances("finnalcola.test"));
-
-        naming.subscribe("finnalcola.test", new EventListener() {
+        naming.subscribe("finalcola.test", new EventListener() {
             @Override
             public void onEvent(Event event) {
                 System.out.println(((NamingEvent)event).getServiceName());

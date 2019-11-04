@@ -155,7 +155,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                     // 缓存发送给client的data信息
                     Map<String, Object> cache = new HashMap<>(16);
                     long lastRefTime = System.nanoTime();
-                    // 通过udp将最新的数据的发送个客户端
+                    // 通过udp将最新的数据的发送给service下的每个客户端
                     for (PushClient client : clients.values()) {
                         if (client.zombie()) {
                             Loggers.PUSH.debug("client is zombie: " + client.toString());
@@ -185,6 +185,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         } else {
                             // 读取pushDataSource的数据（Instance列表）,封装为AckEntry
                             ackEntry = prepareAckEntry(client, prepareHostsData(client)/*获取pushDataSource中的data*/, lastRefTime);
+                            // 放入缓存
                             if (ackEntry != null) {
                                 cache.put(key, new org.javatuples.Pair<>(ackEntry.origin.getData(), ackEntry.data));
                             }
@@ -330,6 +331,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
     // 通知服务变更事件
     public void serviceChanged(Service service) {
         // merge some change events to reduce the push frequency:
+        // 合并更新事件，减少push次数
         if (futureMap.containsKey(UtilsAndCommons.assembleFullServiceName(service.getNamespaceId(), service.getName()))) {
             return;
         }
@@ -714,8 +716,10 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             }
 
             public String key;
+            // udp数据包
             public DatagramPacket origin;
             private AtomicInteger retryTimes = new AtomicInteger(0);
+            // 原数据
             public Map<String, Object> data;
         }
 

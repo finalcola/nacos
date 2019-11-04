@@ -74,6 +74,7 @@ public class SystemUtils {
 
     /**
      * The file path of cluster conf.
+     * NACOS_HOME/conf/cluster.conf
      */
     public static final String CLUSTER_CONF_FILE_PATH = getClusterConfFilePath();
 

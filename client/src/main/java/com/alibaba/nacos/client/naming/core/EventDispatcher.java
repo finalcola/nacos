@@ -30,6 +30,7 @@ import java.util.concurrent.*;
 import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
+ * 接收服务变更事件，并通知给关注的listener
  * @author xuanyin
  */
 public class EventDispatcher {
@@ -52,10 +53,11 @@ public class EventDispatcher {
                 return thread;
             }
         });
-
+        // 从changedServices取出变更的服务，通知listener
         executor.execute(new Notifier());
     }
 
+    // 添加服务的listener，并发布一次service注册事件
     public void addListener(ServiceInfo serviceInfo, String clusters, EventListener listener) {
 
         NAMING_LOGGER.info("[LISTENER] adding " + serviceInfo.getName() + " with " + clusters + " to listener map");
@@ -66,7 +68,7 @@ public class EventDispatcher {
         if (observers != null) {
             observers.add(listener);
         }
-        // 第一次注册listener，发布一次service更新事件
+        // 发布一次service更新事件,让新增的listener刷新服务
         serviceChanged(serviceInfo);
     }
 
@@ -105,10 +107,12 @@ public class EventDispatcher {
         changedServices.add(serviceInfo);
     }
 
+    // 从changedServices取出变更的服务，通知listener
     private class Notifier implements Runnable {
         @Override
         public void run() {
             while (true) {
+                // 从changedServices取出变更的服务，通知listener
                 ServiceInfo serviceInfo = null;
                 try {
                     serviceInfo = changedServices.poll(5, TimeUnit.MINUTES);

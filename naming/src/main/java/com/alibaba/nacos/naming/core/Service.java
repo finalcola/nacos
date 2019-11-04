@@ -152,6 +152,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return KeyBuilder.matchInstanceListKey(key, namespaceId, getName());
     }
 
+    // 当服务的几点变更时调用，更新instance列表，并push更新通知
     @Override
     public void onChange(String key, Instances value) throws Exception {
 
@@ -173,6 +174,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
             }
         }
 
+        // 更新instance列表，并push更新通知
         updateIPs(value.getInstanceList(), KeyBuilder.matchEphemeralInstanceListKey(key));
 
         recalculateChecksum();

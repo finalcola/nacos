@@ -60,8 +60,10 @@ public class NamingProxy {
 
     private String nacosDomain;
 
+    // 配置的server地址列表
     private List<String> serverList;
 
+    // 记录从endpoint拉取的server地址列表
     private List<String> serversFromEndpoint = new ArrayList<String>();
 
     private long lastSrvRefTime = 0L;
@@ -148,6 +150,7 @@ public class NamingProxy {
         return null;
     }
 
+    // 从endpoint地址中查询server地址
     private void refreshSrvIfNeed() {
         try {
 
@@ -428,6 +431,7 @@ public class NamingProxy {
         if (curServer.startsWith(UtilAndComs.HTTPS) || curServer.startsWith(UtilAndComs.HTTP)) {
             url = curServer + api;
         } else {
+            // 添加默认端口8848
             if (!curServer.contains(UtilAndComs.SERVER_ADDR_IP_SPLITER)) {
                 curServer = curServer + UtilAndComs.SERVER_ADDR_IP_SPLITER + serverPort;
             }

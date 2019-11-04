@@ -52,6 +52,7 @@ public class NacosNamingService implements NamingService {
 
     /**
      * Each Naming instance should have different namespace.
+     * 每个instance的namespace应该不同
      */
     private String namespace;
 
@@ -65,17 +66,17 @@ public class NacosNamingService implements NamingService {
     private String logName;
 
     /**
-     * 负责管理instance变更
+     * 负责管理instance及其变更
      */
     private HostReactor hostReactor;
 
     /**
-     * 心跳任务
+     * 心跳任务:发送心跳的组件，以维持临时节点
      */
     private BeatReactor beatReactor;
 
     /**
-     * 负责服务变更事件通知
+     * 负责服务变更事件通知：接收hostReactor发送的服务变更事件，并通知相关listener
      */
     private EventDispatcher eventDispatcher;
 
@@ -96,7 +97,7 @@ public class NacosNamingService implements NamingService {
     }
 
     private void init(Properties properties) {
-        // 读取配置的namespace
+        // 读取配置的namespace(默认为public)
         namespace = InitUtils.initNamespaceForNaming(properties);
         // 初始化server地址（endpoint优先级更高）
         initServerAddr(properties);
@@ -145,6 +146,7 @@ public class NacosNamingService implements NamingService {
     private void initServerAddr(Properties properties) {
         serverList = properties.getProperty(PropertyKeyConst.SERVER_ADDR);
         endpoint = InitUtils.initEndpoint(properties);
+        // 优先使用endpoint
         if (StringUtils.isNotEmpty(endpoint)) {
             serverList = "";
         }

@@ -209,6 +209,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
                 leader.ip, JSON.toJSONString(local()), JSON.toJSONString(leader));
         }
 
+        // 更新旧leader的信息
         for (final RaftPeer peer : peers.values()) {
             Map<String, String> params = new HashMap<>(1);
             // 向旧leader发送getPeer请求
@@ -269,6 +270,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         return peers.size() / 2 + 1;
     }
 
+    // 重置集群状态，将投票置空
     public void reset() {
 
         leader = null;
