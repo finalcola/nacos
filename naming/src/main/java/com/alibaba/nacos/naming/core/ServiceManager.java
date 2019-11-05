@@ -134,7 +134,7 @@ public class ServiceManager implements RecordListener<Service> {
         return KeyBuilder.matchServiceMetaKey(key) && !KeyBuilder.matchSwitchKey(key);
     }
 
-    // 监听所有service的更新（包括新增）和删除，并未新增的service注册对应的监听器
+    // 监听所有service的更新（包括新增）和删除，并将新增的service注册为监听器
     @Override
     public void onChange(String key, Service service) throws Exception {
         try {
@@ -161,7 +161,7 @@ public class ServiceManager implements RecordListener<Service> {
                 putService(service);
                 // 初始化
                 service.init();
-                // 添加service对应的监听器
+                // 将service作为监听器注册到一致性服务（用于接收instance更新通知）
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);
                 consistencyService.listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), false), service);
                 Loggers.SRV_LOG.info("[NEW-SERVICE] {}", service.toJSON());
@@ -211,6 +211,7 @@ public class ServiceManager implements RecordListener<Service> {
 
             try {
                 while (true) {
+                    // 任务队列中取出发送了更新的key
                     try {
                         serviceKey = toBeUpdatedServicesQueue.take();
                     } catch (Exception e) {
@@ -296,15 +297,16 @@ public class ServiceManager implements RecordListener<Service> {
         JSONObject serviceJson = JSON.parseObject(msg.getData());
 
         // service集群的节点ip列表
+        // json数组中存放的是instance的ip和健康情况，格式为：ipAddr_healthy
         JSONArray ipList = serviceJson.getJSONArray("ips");
-        Map<String, String> ipsMap = new HashMap<>(ipList.size());
+        Map<String/*ipAddr*/, String/*healthy*/> ipsMap = new HashMap<>(ipList.size());
         for (int i = 0; i < ipList.size(); i++) {
-
             String ip = ipList.getString(i);
             String[] strings = ip.split("_");
             ipsMap.put(strings[0], strings[1]);
         }
 
+        // 获取本地保存的service
         Service service = getService(namespaceId, serviceName);
 
         if (service == null) {

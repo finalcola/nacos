@@ -158,7 +158,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
             tasks.add(new TaskProcessor(beat));
         } while (taskQueue.size() > 0 && tasks.size() < NIO_THREAD_COUNT * 64);
 
-        // 批量将任务提交到线程池
+        // 批量执行任务，并等待结果
         for (Future<?> f : NIO_EXECUTOR.invokeAll(tasks)) {
             f.get();
         }
@@ -168,7 +168,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
     public void run() {
         while (true) {
             try {
-                // 处理taskQueue中的任务，创建与instance的链接以及超时任务
+                // 处理taskQueue中的任务，创建与instance所在client地址的链接以及超时任务
                 processTask();
 
                 // selector
@@ -177,7 +177,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
                     continue;
                 }
 
-                // 提交处理IO的任务
+                // 提交处理IO的任务(检查连接情况，并更新instance状态)
                 Iterator<SelectionKey> iter = selector.selectedKeys().iterator();
                 while (iter.hasNext()) {
                     SelectionKey key = iter.next();
@@ -400,7 +400,7 @@ public class TcpSuperSenseProcessor implements HealthCheckProcessor, Runnable {
             try {
                 Instance instance = beat.getIp();
                 Cluster cluster = beat.getTask().getCluster();
-
+                // 每个client的唯一标识key
                 BeatKey beatKey = keyMap.get(beat.toString());
                 // 销毁之前创建的beatKey
                 if (beatKey != null && beatKey.key.isValid()) {

@@ -88,6 +88,7 @@ public class HealthCheckTask implements Runnable {
                 HealthCheckReactor.scheduleCheck(this);
 
                 // worst == 0 means never checked
+                // 检查往返时间
                 if (this.getCheckRTWorst() > 0
                     && switchDomain.isHealthCheckEnabled(cluster.getService().getName())
                     && distroMapper.responsible(cluster.getService().getName())) {
