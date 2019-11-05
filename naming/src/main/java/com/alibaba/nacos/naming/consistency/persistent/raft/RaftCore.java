@@ -103,7 +103,7 @@ public class RaftCore {
     @Autowired
     private RaftPeerSet peers;
 
-    // 开关
+    // 开关配置类
     @Autowired
     private SwitchDomain switchDomain;
 
@@ -114,6 +114,7 @@ public class RaftCore {
     @Autowired
     private RaftProxy raftProxy;
 
+    // 数据存储组件：写盘及读取
     @Autowired
     private RaftStore raftStore;
 
@@ -131,7 +132,7 @@ public class RaftCore {
 
         long start = System.currentTimeMillis();
 
-        // 加载NACOS_HOME/data/naming/data内的文件
+        // 加载NACOS_HOME/data/naming/data内的文件（持久化文件）
         raftStore.loadDatums(notifier, datums);
 
         // 设置term
@@ -411,9 +412,10 @@ public class RaftCore {
                     return;
                 }
 
+                // leaderDueMs为leader到期时间，每次接受到心跳后会刷新
                 RaftPeer local = peers.local();
                 local.leaderDueMs -= GlobalExecutor.TICK_PERIOD_MS;
-
+                // 未到期
                 if (local.leaderDueMs > 0) {
                     return;
                 }

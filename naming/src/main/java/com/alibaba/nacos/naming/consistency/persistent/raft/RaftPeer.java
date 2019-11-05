@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * raft集群中其他节点信息
+ * raft集群中的节点信息
  * @author nacos
  */
 public class RaftPeer {

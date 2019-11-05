@@ -52,6 +52,8 @@ import static com.alibaba.nacos.config.server.utils.LogUtil.fatalLog;
 
 /**
  * Dump data service
+ * 转储服务组件
+ * 将数据库中的配置转储到磁盘和内存（会定期更新配置），并且会通知listener（长轮询监听器）
  *
  * @author Nacos
  */

@@ -299,10 +299,10 @@ public class ServiceController {
         return result;
     }
 
-    // 其他server定时发送service状态信息，用于同步
+    // 处理其他server定时发送的service状态信息，用于更新同步
     @RequestMapping(value = "/status", method = RequestMethod.POST)
     public String serviceStatus(HttpServletRequest request) throws Exception {
-
+        // 参数解析
         String entity = IOUtils.toString(request.getInputStream(), "UTF-8");
         String value = URLDecoder.decode(entity, "UTF-8");
         JSONObject json = JSON.parseObject(value);
@@ -311,19 +311,21 @@ public class ServiceController {
         String statuses = json.getString("statuses");
         String serverIP = json.getString("clientIP");
 
+        // 来自非集群内的节点
         if (!serverListManager.contains(serverIP)) {
             throw new NacosException(NacosException.INVALID_PARAM,
                 "ip: " + serverIP + " is not in serverlist");
         }
 
         try {
-            // 校验任务
+            // 反序列化为校验任务
             ServiceManager.ServiceChecksum checksums = JSON.parseObject(statuses, ServiceManager.ServiceChecksum.class);
             if (checksums == null) {
                 Loggers.SRV_LOG.warn("[DOMAIN-STATUS] receive malformed data: null");
                 return "fail";
             }
 
+            // 处理校验任务，如果不匹配，代表当前节点的数据已过期，需要更新
             for (Map.Entry<String, String> entry : checksums.serviceName2Checksum.entrySet()) {
                 if (entry == null || StringUtils.isEmpty(entry.getKey()) || StringUtils.isEmpty(entry.getValue())) {
                     continue;

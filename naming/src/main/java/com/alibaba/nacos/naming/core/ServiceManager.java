@@ -60,6 +60,7 @@ public class ServiceManager implements RecordListener<Service> {
      */
     private Map<String, Map<String, Service>> serviceMap = new ConcurrentHashMap<>();
 
+    //
     private LinkedBlockingDeque<ServiceKey> toBeUpdatedServicesQueue = new LinkedBlockingDeque<>(1024 * 1024);
 
     /**
@@ -81,6 +82,7 @@ public class ServiceManager implements RecordListener<Service> {
     @Autowired
     private ServerListManager serverListManager;
 
+    // 用于服务状态变更后，主动push通知到客户端
     @Autowired
     private PushService pushService;
 
@@ -94,6 +96,8 @@ public class ServiceManager implements RecordListener<Service> {
         // 处理异步更新service状态任务
         UtilsAndCommons.SERVICE_UPDATE_EXECUTOR.submit(new UpdatedServiceProcessor());
 
+        // 将当前类作为listener，注册到consistencyService
+        // 用于服务变更时，接收通知
         try {
             Loggers.SRV_LOG.info("listen for service meta change");
             consistencyService.listen(KeyBuilder.SERVICE_META_KEY_PREFIX, this);
@@ -780,6 +784,8 @@ public class ServiceManager implements RecordListener<Service> {
         }
     }
 
+    // 向其他server同步由当前节点负责的服务
+    //（生成校验码，其他server比对后，主动向当前节点请求最新的服务信息）
     private class ServiceReporter implements Runnable {
 
         @Override

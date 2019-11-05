@@ -150,6 +150,7 @@ public class ConfigController {
             if (StringUtils.isBlank(tag)) {
                 // config_info表
                 persistService.insertOrUpdate(srcIp, srcUser, configInfo, time, configAdvanceInfo, false);
+                // 通知其他server数据变更
                 EventDispatcher.fireEvent(new ConfigDataChangeEvent(false, dataId, group, tenant, time.getTime()));
             } else {
                 // config_info_tag

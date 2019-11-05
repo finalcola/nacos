@@ -242,6 +242,7 @@ public class LongPollingService extends AbstractEventListener {
                 LogUtil.clientLog.info("{}|{}|{}|{}|{}|{}|{}", System.currentTimeMillis() - start, "nohangup",
                     RequestUtil.getRemoteIp(req), "polling", clientMd5Map.size(), probeRequestSize,
                     changedGroups.size());
+                // 返回空响应
                 return;
             }
         }
@@ -304,7 +305,7 @@ public class LongPollingService extends AbstractEventListener {
     final ScheduledExecutorService scheduler;
 
     /**
-     * 长轮询订阅关系
+     * 长轮询订阅关系：记录当前挂起的客户端请求
      */
     final Queue<ClientLongPolling> allSubs;
 
@@ -430,6 +431,7 @@ public class LongPollingService extends AbstractEventListener {
 
             }, timeoutTime, TimeUnit.MILLISECONDS);
 
+            // 记录当前挂起的请求
             allSubs.add(this);
         }
 
