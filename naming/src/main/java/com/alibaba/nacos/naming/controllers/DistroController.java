@@ -68,6 +68,7 @@ public class DistroController {
     @Autowired
     private SwitchDomain switchDomain;
 
+    // 处理其他server同步的临时节点数据
     @RequestMapping(value = "/datum", method = RequestMethod.PUT)
     public String onSyncDatum(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -78,7 +79,7 @@ public class DistroController {
             throw new NacosException(NacosException.INVALID_PARAM, "receive empty entity!");
         }
 
-        // 解析
+        // 反序列化
         Map<String, Datum<Instances>> dataMap =
             serializer.deserializeMap(entity.getBytes(), Instances.class);
 
@@ -92,13 +93,14 @@ public class DistroController {
                     && switchDomain.isDefaultInstanceEphemeral()) {
                     serviceManager.createEmptyService(namespaceId, serviceName, true);
                 }
-                // 同步到其他节点
+                // 一致性服务写入,更新本地节点信息并push通知
                 consistencyService.onPut(entry.getKey(), entry.getValue().value);
             }
         }
         return "ok";
     }
 
+    // 处理其他server发送的校验请求，并主动更新最新的数据
     @RequestMapping(value = "/checksum", method = RequestMethod.PUT)
     public String syncChecksum(HttpServletRequest request, HttpServletResponse response) throws Exception {
         String source = WebUtils.required(request, "source");

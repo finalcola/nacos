@@ -45,8 +45,10 @@ public class PushReceiver implements Runnable {
     public PushReceiver(HostReactor hostReactor) {
         try {
             this.hostReactor = hostReactor;
+            // 创建本地接收push的udp socket
             udpSocket = new DatagramSocket();
 
+            // 调度当前对象
             executorService = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
                 @Override
                 public Thread newThread(Runnable r) {
@@ -70,13 +72,14 @@ public class PushReceiver implements Runnable {
                 // byte[] is initialized with 0 full filled by default
                 byte[] buffer = new byte[UDP_MSS];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-
+                // 接收push通知（阻塞式）
                 udpSocket.receive(packet);
 
                 String json = new String(IoUtils.tryDecompress(packet.getData()), "UTF-8").trim();
                 NAMING_LOGGER.info("received push data: " + json + " from " + packet.getAddress().toString());
 
                 PushPacket pushPacket = JSON.parseObject(json, PushPacket.class);
+                // 根据消息类型构造响应
                 String ack;
                 if ("dom".equals(pushPacket.type) || "service".equals(pushPacket.type)) {
                     // 处理接收的serviceInfo,通知服务变更

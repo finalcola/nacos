@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Data replicator
- * 同步数据组价
+ * 同步数据组件
  *
  * @author nkorange
  * @since 1.0.0
@@ -75,10 +75,11 @@ public class DataSyncer {
 
         // If it's a new task:
         if (task.getRetryCount() == 0) {
+            // 过滤掉正在处理中的key
             Iterator<String> iterator = task.getKeys().iterator();
             while (iterator.hasNext()) {
                 String key = iterator.next();
-                // 删除重复的key
+                // 将key添加到taskMap，并删除重复的key
                 if (StringUtils.isNotBlank(taskMap.putIfAbsent(buildKey(key, task.getTargetServer()), key))) {
                     // associated key already exist:
                     if (Loggers.EPHEMERAL.isDebugEnabled()) {
@@ -201,6 +202,7 @@ public class DataSyncer {
                     Loggers.EPHEMERAL.debug("sync checksums: {}", keyChecksums);
                 }
 
+                // 向集群中的其他server发送HTTP请求
                 for (Server member : getServers()) {
                     if (NetUtils.localServer().equals(member.getKey())) {
                         continue;

@@ -125,6 +125,7 @@ public class HostReactor {
                     + ", new-t: " + serviceInfo.getLastRefTime());
             }
 
+            // 更新本地缓存的service信息
             serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
 
             Map<String, Instance> oldHostMap = new HashMap<String, Instance>(oldService.getHosts().size());
@@ -137,6 +138,7 @@ public class HostReactor {
                 newHostMap.put(host.toInetAddr(), host);
             }
 
+            // 筛选出更新、新增、删除的节点
             Set<Instance> modHosts = new HashSet<Instance>();
             Set<Instance> newHosts = new HashSet<Instance>();
             Set<Instance> remvHosts = new HashSet<Instance>();
@@ -275,11 +277,13 @@ public class HostReactor {
 
     // 添加定时更新调度任务
     public void scheduleUpdateIfAbsent(String serviceName, String clusters) {
+        // 避免重复添加
         if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
             return;
         }
 
         synchronized (futureMap) {
+            // 标记定时更新任务已经添加
             if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
                 return;
             }
@@ -340,7 +344,7 @@ public class HostReactor {
                     executor.schedule(this, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
                     return;
                 }
-                // 更新
+                // 发送查询请求
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
                     updateServiceNow(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
@@ -351,6 +355,7 @@ public class HostReactor {
                     refreshOnly(serviceName, clusters);
                 }
 
+                // 缓存时间到期后，继续调度
                 executor.schedule(this, serviceObj.getCacheMillis(), TimeUnit.MILLISECONDS);
 
                 lastRefTime = serviceObj.getLastRefTime();

@@ -63,7 +63,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
     private static volatile ConcurrentMap<String, Receiver.AckEntry> ackMap
         = new ConcurrentHashMap<String, Receiver.AckEntry>();
 
-    private static ConcurrentMap<String/*namespaceId##serviceName*/, ConcurrentMap<String, PushClient>> clientMap
+    private static ConcurrentMap<String/*namespaceId##serviceName*/, ConcurrentMap<String/*client.toString*/, PushClient>> clientMap
         = new ConcurrentHashMap<String, ConcurrentMap<String, PushClient>>();
 
     private static volatile ConcurrentHashMap<String, Long> udpSendTimeMap = new ConcurrentHashMap<String, Long>();
@@ -140,7 +140,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         Service service = event.getService();
         String serviceName = service.getName();
         String namespaceId = service.getNamespaceId();
-
+        // 将最新的Service信息推送给注册到该服务上的client
         Future future = udpSender.schedule(new Runnable() {
             @Override
             public void run() {
@@ -206,7 +206,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
 
             }
         }, 1000, TimeUnit.MILLISECONDS);
-
+        // 标记当前服务最新信息正在推送给client
         futureMap.put(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName), future);
 
     }
@@ -690,8 +690,9 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                     Loggers.PUSH.info("received ack: {} from: {}:, cost: {} ms, unacked: {}, total push: {}",
                         json, ip, port, pushCost, ackMap.size(), totalPush);
 
+                    // 记录时间
                     pushCostMap.put(ackKey, pushCost);
-
+                    // 标记当前service已经推送完成
                     udpSendTimeMap.remove(ackKey);
 
                 } catch (Throwable e) {

@@ -112,7 +112,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
     private boolean initialized = false;
 
     /**
-     * 执行事件通知任务,通知下面的listener
+     * 执行事件通知任务,通知注册的listener
      */
     public volatile Notifier notifier = new Notifier();
 
@@ -123,6 +123,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @PostConstruct
     public void init() throws Exception {
+        // 全量同步任务
         GlobalExecutor.submit(new Runnable() {
             @Override
             public void run() {
@@ -134,7 +135,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 }
             }
         });
-
+        // 执行事件通知任务
         executor.submit(notifier);
     }
 
@@ -143,7 +144,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
      * @throws Exception
      */
     public void load() throws Exception {
-        // 单机模式
+        // 单机模式忽略
         if (SystemUtils.STANDALONE_MODE) {
             initialized = true;
             return;
@@ -300,7 +301,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
     public boolean syncAllDataFromRemote(Server server) {
 
         try {
+            // 向server全量获取数据
             byte[] data = NamingProxy.getAllData(server.getKey());
+            // 同步
             processData(data);
             return true;
         } catch (Exception e) {
@@ -325,7 +328,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 if (!listeners.containsKey(entry.getKey())) {
                     // pretty sure the service not exist:
                     if (switchDomain.isDefaultInstanceEphemeral()) {
-                        // create empty service
+                        // 新建空Service，并通知相关listener(ServiceManager)更新Service列表并初始化
                         Loggers.EPHEMERAL.info("creating service {}", entry.getKey());
                         Service service = new Service();
                         String serviceName = KeyBuilder.getServiceName(entry.getKey());
@@ -351,7 +354,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                     continue;
                 }
 
-                // 通知监听器
+                // 通知监听器(刚刚创建的Service)更新instance列表
                 try {
                     for (RecordListener listener : listeners.get(entry.getKey())) {
                         listener.onChange(entry.getKey(), entry.getValue().value);
@@ -362,6 +365,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 }
 
                 // Update data store if listener executed successfully:
+                // 保存数据
                 dataStore.put(entry.getKey(), entry.getValue());
             }
         }
@@ -415,6 +419,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             if (services.containsKey(datumKey) && action == ApplyAction.CHANGE) {
                 return;
             }
+            // 标记该服务的节点列表正在更新
             if (action == ApplyAction.CHANGE) {
                 services.put(datumKey, StringUtils.EMPTY);
             }

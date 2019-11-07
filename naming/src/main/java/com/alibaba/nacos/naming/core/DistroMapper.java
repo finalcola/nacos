@@ -60,7 +60,7 @@ public class DistroMapper implements ServerChangeListener {
     }
 
     /**
-     * 检查集群内的节点是否可响应
+     * 检查是否由本地server响应该节点
      * @return
      */
     public boolean responsible(Cluster cluster, Instance instance) {

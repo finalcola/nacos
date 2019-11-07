@@ -77,9 +77,10 @@ public class DistroFilter implements Filter {
             String serviceName = req.getParameter(CommonParams.SERVICE_NAME);
             // For client under 0.8.0:
             if (StringUtils.isBlank(serviceName)) {
+                // 0.0.8之前的客户端使用dom传递serviceName参数
                 serviceName = req.getParameter("dom");
             }
-            // 获取conntroller对应的方法
+            // 获取controller对应的方法
             Method method = filterBase.getMethod(req.getMethod(), path);
 
             if (method == null) {
@@ -98,7 +99,7 @@ public class DistroFilter implements Filter {
             }
 
             // proxy request to other server if necessary:
-            // 不能由本地server响应，代理发送给其它server的请求
+            // 不由本地server响应，代理发送给其它server的请求
             if (method.isAnnotationPresent(CanDistro.class) && !distroMapper.responsible(groupedServiceName)) {
 
                 String userAgent = req.getHeader("User-Agent");

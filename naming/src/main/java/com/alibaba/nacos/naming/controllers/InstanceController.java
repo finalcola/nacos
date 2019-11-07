@@ -157,7 +157,7 @@ public class InstanceController {
 
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     public JSONObject list(HttpServletRequest request) throws Exception {
-
+        // 解析参数
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID,
             Constants.DEFAULT_NAMESPACE_ID);
 
@@ -179,6 +179,7 @@ public class InstanceController {
 
         boolean healthyOnly = Boolean.parseBoolean(WebUtils.optional(request, "healthyOnly", "false"));
 
+        // 查询service集群中instance信息, 并创建PushClient
         return doSrvIPXT(namespaceId, serviceName, agent, clusters, clientIP, udpPort, env, isCheck, app, tenant, healthyOnly);
     }
 
@@ -390,7 +391,7 @@ public class InstanceController {
     }
 
     /**
-     * 查询service集群中instance的状态信息
+     * 查询service集群中instance的状态信息, 并创建PushClient
      */
     public JSONObject doSrvIPXT(String namespaceId, String serviceName, String agent, String clusters, String clientIP, int udpPort,
                                 String env, boolean isCheck, String app, String tid, boolean healthyOnly) throws Exception {

@@ -307,6 +307,7 @@ public class NacosNamingService implements NamingService {
 
         ServiceInfo serviceInfo;
         if (subscribe) {
+            // 查询缓存并开启轮询任务
             serviceInfo = hostReactor.getServiceInfo(NamingUtils.getGroupedName(serviceName, groupName), StringUtils.join(clusters, ","));
         } else {
             // 不查询本地缓存以及注册到server
