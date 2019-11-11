@@ -189,7 +189,7 @@ public class DumpService {
                 TimeUnit.MINUTES);
         }
 
-        // 删除过期的日志表数据
+        // 定期删除过期的日志表数据
         TimerTaskService.scheduleWithFixedDelay(clearConfigHistory, 10, 10, TimeUnit.MINUTES);
 
     }

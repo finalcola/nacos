@@ -391,6 +391,7 @@ public class LongPollingService extends AbstractEventListener {
                 @Override
                 public void run() {
                     try {
+                        // 记录挂起客户端请求的ip
                         getRetainIps().put(ClientLongPolling.this.ip, System.currentTimeMillis());
                         /**
                          * 删除订阅关系

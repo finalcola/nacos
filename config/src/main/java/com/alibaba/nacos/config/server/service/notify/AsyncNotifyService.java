@@ -77,9 +77,9 @@ public class AsyncNotifyService extends AbstractEventListener {
             String group = evt.group;
             String tenant = evt.tenant;
             String tag = evt.tag;
-            List<?> ipList = serverListService.getServerList();
 
-            // 将数据变更的通知发送给其他server
+            // 将数据变更的通知发送给其他server(包括本地server)
+            List<?> ipList = serverListService.getServerList();
             Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
             for (int i = 0; i < ipList.size(); i++) {
                 queue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, (String) ipList.get(i), evt.isBeta));
@@ -126,6 +126,7 @@ public class AsyncNotifyService extends AbstractEventListener {
 
         private void executeAsyncInvoke() {
             while (!queue.isEmpty()) {
+                // 拉取队列中保存的通知任务
                 NotifySingleTask task = queue.poll();
                 String targetIp = task.getTargetIP();
                 if (serverListService.getServerList().contains(

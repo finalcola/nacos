@@ -69,7 +69,7 @@ public class ConfigServletInner {
                                   Map<String, String> clientMd5Map, int probeRequestSize)
         throws IOException, ServletException {
 
-        // 长轮询
+        // 长轮询（检查请求头）
         if (LongPollingService.isSupportLongPolling(request)) {
             longPollingService.addLongPollingClient(request, response, clientMd5Map, probeRequestSize);
             // 返回值只是作为中断后面的流程，不是响应

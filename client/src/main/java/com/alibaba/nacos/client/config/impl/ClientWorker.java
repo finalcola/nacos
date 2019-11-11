@@ -85,6 +85,7 @@ public class ClientWorker {
     public void addTenantListeners(String dataId, String group, List<? extends Listener> listeners) throws NacosException {
         group = null2defaultGroup(group);
         String tenant = agent.getTenant();
+        // 创建本地缓存对象
         CacheData cache = addCacheDataIfAbsent(dataId, group, tenant);
         for (Listener listener : listeners) {
             cache.addListener(listener);
@@ -187,9 +188,11 @@ public class ClientWorker {
                 // reset so that server not hang this check
                 cache.setInitializing(true);
             } else {
+                // 新建缓存对象
                 cache = new CacheData(configFilterChainManager, agent.getName(), dataId, group, tenant);
                 // fix issue # 1317
                 if (enableRemoteSyncConfig) {
+                    // 查询配置内容，enableRemoteSyncConfig默认为false
                     String content = getServerConfig(dataId, group, tenant, 3000L);
                     cache.setContent(content);
                 }
@@ -268,14 +271,16 @@ public class ClientWorker {
         }
     }
 
+    // 检查是否读取本地故障转移文件
     private void checkLocalConfig(CacheData cacheData) {
         final String dataId = cacheData.dataId;
         final String group = cacheData.group;
         final String tenant = cacheData.tenant;
         File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant);
 
-        // 没有 -> 有
+        // 不使用本地故障转移文件，但文件存在
         if (!cacheData.isUseLocalConfigInfo() && path.exists()) {
+            // 读取故障转移文件
             String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
             String md5 = MD5.getInstance().getMD5String(content);
             cacheData.setUseLocalConfigInfo(true);
@@ -287,17 +292,19 @@ public class ClientWorker {
             return;
         }
 
-        // 有 -> 没有。不通知业务监听器，从server拿到配置后通知。
+        // 使用故障转移文件但文件不存在。
         if (cacheData.isUseLocalConfigInfo() && !path.exists()) {
+            // 不使用故障转移文件
             cacheData.setUseLocalConfigInfo(false);
             LOGGER.warn("[{}] [failover-change] failover file deleted. dataId={}, group={}, tenant={}", agent.getName(),
                 dataId, group, tenant);
             return;
         }
 
-        // 有变更
+        // 有变更。使用故障转移文件且文件存在，但cacheData保存的是老版本故障转移文件内容。
         if (cacheData.isUseLocalConfigInfo() && path.exists()
             && cacheData.getLocalConfigInfoVersion() != path.lastModified()) {
+            // 读取磁盘文件
             String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
             String md5 = MD5.getInstance().getMD5String(content);
             cacheData.setUseLocalConfigInfo(true);
@@ -327,11 +334,12 @@ public class ClientWorker {
     }
 
     /**
-     * 从Server获取值变化了的DataID列表。返回的对象里只有dataId和group是有效的。 保证不返回NULL。
+     * 从Server获取md5发送变化的DataID列表。返回的对象里只有dataId和group是有效的。 保证不返回NULL。
      */
     List<String> checkUpdateDataIds(List<CacheData> cacheDatas, List<String> inInitializingCacheList) throws IOException {
         StringBuilder sb = new StringBuilder();
         for (CacheData cacheData : cacheDatas) {
+            // 过滤故障转移的配置
             if (!cacheData.isUseLocalConfigInfo()) {
                 sb.append(cacheData.dataId).append(WORD_SEPARATOR);
                 sb.append(cacheData.group).append(WORD_SEPARATOR);
@@ -458,7 +466,7 @@ public class ClientWorker {
             }
         });
 
-        // 定时检查cacheData数量，如果超出限制会新增从长轮询任务
+        // 定时检查cacheData数量，如果超出限制新增长轮询任务
         executor.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
@@ -481,7 +489,7 @@ public class ClientWorker {
         enableRemoteSyncConfig = Boolean.parseBoolean(properties.getProperty(PropertyKeyConst.ENABLE_REMOTE_SYNC_CONFIG));
     }
 
-    // 长轮询任务，用于定期拉取最新的配置信息
+    // 长轮询任务，用于定期拉取最新的配置信息并通知listener
     class LongPollingRunnable implements Runnable {
         private int taskId;
 
@@ -500,7 +508,9 @@ public class ClientWorker {
                     if (cacheData.getTaskId() == taskId) {
                         cacheDatas.add(cacheData);
                         try {
+                            // 检查是否读取本地故障转移文件
                             checkLocalConfig(cacheData);
+                            // 根据故障转移文件配置，比较md5并通知listener
                             if (cacheData.isUseLocalConfigInfo()) {
                                 cacheData.checkListenerMd5();
                             }
@@ -510,7 +520,7 @@ public class ClientWorker {
                     }
                 }
 
-                // 向server发送本地配置的MD5，检查发生更新的配置
+                // 向server发送本地配置的MD5，获取发生更新的配置
                 List<String> changedGroupKeys = checkUpdateDataIds(cacheDatas, inInitializingCacheList);
 
                 // 向server请求更新的配置

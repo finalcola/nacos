@@ -73,6 +73,7 @@ public class ConfigService {
             return false;
         }
 
+        // 检查配置是否发生了更新，是则更新缓存和磁盘文件
         try {
             final String md5 = MD5.getInstance().getMD5String(content);
             if (md5.equals(ConfigService.getContentMd5(groupKey))) {
@@ -425,7 +426,7 @@ public class ConfigService {
         if (cache.md5 == null || !cache.md5.equals(md5)) {
             cache.md5 = md5;
             cache.lastModifiedTs = lastModifiedTs;
-            // 通知cacheData更新
+            // 通知cacheData更新(通知长轮询任务)
             EventDispatcher.fireEvent(new LocalDataChangeEvent(groupKey));
         }
     }

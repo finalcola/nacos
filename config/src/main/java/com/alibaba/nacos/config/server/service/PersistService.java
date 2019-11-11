@@ -507,7 +507,7 @@ public class PersistService {
                         configInfo.getTenant());
                     // 添加日志表
                     insertConfigHistoryAtomic(0, configInfo, srcIp, srcUser, time, "I");
-                    // 发布配置修改事件
+                    // 如果需要，发布配置修改事件，通知其他server
                     if (notify) {
                         EventDispatcher.fireEvent(
                             new ConfigDataChangeEvent(false, configInfo.getDataId(), configInfo.getGroup(),

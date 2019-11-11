@@ -190,7 +190,7 @@ class DumpProcessor implements TaskProcessor {
                 // 转储数据库最新的数据
                 boolean result;
                 if (null != cf) {
-                    // 更新configInfo
+                    // 转储config_info表数据
                     result = ConfigService.dump(dataId, group, tenant, cf.getContent(), lastModified);
 
                     if (result) {
@@ -209,7 +209,7 @@ class DumpProcessor implements TaskProcessor {
                 }
                 return result;
             } else {
-                // 更新config_info_tag表的数据
+                // 转储config_info_tag表的数据
                 ConfigInfo4Tag cf = dumpService.persistService.findConfigInfo4Tag(dataId, group, tenant, tag);
                 boolean result;
                 if (null != cf) {
