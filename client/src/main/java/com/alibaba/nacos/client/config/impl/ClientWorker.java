@@ -407,7 +407,8 @@ public class ClientWorker implements Closeable {
     public ClientWorker(final ConfigFilterChainManager configFilterChainManager, ServerListManager serverListManager,
             final Properties properties) throws NacosException {
         this.configFilterChainManager = configFilterChainManager;
-        
+
+        // 读取参数配置
         init(properties);
         
         agent = new ConfigRpcTransportClient(properties, serverListManager);
@@ -532,6 +533,7 @@ public class ClientWorker implements Closeable {
         
         /**
          * 5 minutes to check all listen cache keys.
+         * 每隔一段时间，全新同步一次
          */
         private static final long ALL_SYNC_INTERNAL = 5 * 60 * 1000L;
         
@@ -720,19 +722,22 @@ public class ClientWorker implements Closeable {
             Map<String, List<CacheData>> listenCachesMap = new HashMap<>(16);
             Map<String, List<CacheData>> removeListenCachesMap = new HashMap<>(16);
             long now = System.currentTimeMillis();
+            // 是否需要全量同步(间隔5min)
             boolean needAllSync = now - lastAllSyncTime >= ALL_SYNC_INTERNAL;
             for (CacheData cache : cacheMap.get().values()) {
                 
                 synchronized (cache) {
                     
                     //check local listeners consistent.
+                    // 如果cache从server通过过，检查是否需要通知listener
                     if (cache.isSyncWithServer()) {
                         cache.checkListenerMd5();
                         if (!needAllSync) {
                             continue;
                         }
                     }
-                    
+
+                    // 拿到有listener的cache
                     if (!CollectionUtils.isEmpty(cache.getListeners())) {
                         //get listen  config
                         if (!cache.isUseLocalConfigInfo()) {
@@ -745,7 +750,7 @@ public class ClientWorker implements Closeable {
                             
                         }
                     } else if (CollectionUtils.isEmpty(cache.getListeners())) {
-                        
+                        // 没有listener的cache
                         if (!cache.isUseLocalConfigInfo()) {
                             List<CacheData> cacheDatas = removeListenCachesMap.get(String.valueOf(cache.getTaskId()));
                             if (cacheDatas == null) {
@@ -761,7 +766,8 @@ public class ClientWorker implements Closeable {
             }
             
             boolean hasChangedKeys = false;
-            
+
+            // 处理有listener的cache
             if (!listenCachesMap.isEmpty()) {
                 for (Map.Entry<String, List<CacheData>> entry : listenCachesMap.entrySet()) {
                     String taskId = entry.getKey();

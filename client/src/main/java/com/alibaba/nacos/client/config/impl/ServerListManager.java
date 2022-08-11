@@ -90,7 +90,8 @@ public class ServerListManager implements Closeable {
      * Connection timeout and socket timeout with other servers.
      */
     static final int TIMEOUT = 5000;
-    
+
+    // 是否已经解析出地址
     final boolean isFixed;
     
     boolean isStarted = false;
@@ -191,6 +192,7 @@ public class ServerListManager implements Closeable {
         }
         
         if (StringUtils.isNotEmpty(serverAddrsStr)) {
+            // 解析配置的ip地址列表
             this.isFixed = true;
             List<String> serverAddrs = new ArrayList<>();
             StringTokenizer serverAddrsTokens = new StringTokenizer(this.serverAddrsStr, ",;");
@@ -217,6 +219,7 @@ public class ServerListManager implements Closeable {
             }
             this.isFixed = false;
             this.name = initServerName(properties);
+            // 解析 addressServerUrl
             initAddressServerUrl(properties);
         }
         
@@ -247,8 +250,10 @@ public class ServerListManager implements Closeable {
     
     private void initAddressServerUrl(Properties properties) {
         if (isFixed) {
+            // 如果直接配置了ip列表则会走到这里
             return;
         }
+        // 拼接远程地址
         StringBuilder addressServerUrlTem = new StringBuilder(
                 String.format("http://%s:%d%s/%s", this.endpoint, this.endpointPort,
                         ContextPathUtil.normalizeContextPath(this.contentPath), this.serverListName));
@@ -317,7 +322,8 @@ public class ServerListManager implements Closeable {
         if (isStarted || isFixed) {
             return;
         }
-        
+
+        // 启动一个后台task，从远程地址读取server地址
         GetServerListTask getServersTask = new GetServerListTask(addressServerUrl);
         for (int i = 0; i < initServerlistRetryTimes && serverUrls.isEmpty(); ++i) {
             getServersTask.run();
@@ -336,6 +342,7 @@ public class ServerListManager implements Closeable {
         }
         
         // executor schedules the timer task
+        // 定时更新
         this.executorService.scheduleWithFixedDelay(getServersTask, 0L, 30L, TimeUnit.SECONDS);
         isStarted = true;
     }
@@ -373,6 +380,7 @@ public class ServerListManager implements Closeable {
              get serverlist from nameserver
              */
             try {
+                // 从远程地址读取server地址
                 updateIfChanged(getApacheServerList(url, name));
             } catch (Exception e) {
                 LOGGER.error("[" + name + "][update-serverlist] failed to update serverlist from address server!", e);

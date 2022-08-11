@@ -275,7 +275,9 @@ public class CacheData {
     
     void checkListenerMd5() {
         for (ManagerListenerWrap wrap : listeners) {
+            // 比较md5判断是否有更新，以决定是否通知listener（每个ManagerListenerWrap都会缓存一份内容的md5）
             if (!md5.equals(wrap.lastCallMd5)) {
+                // 异步通知listener
                 safeNotifyListener(dataId, group, content, type, md5, encryptedDataKey, wrap);
             }
         }
@@ -297,6 +299,7 @@ public class CacheData {
             final String md5, final String encryptedDataKey, final ManagerListenerWrap listenerWrap) {
         final Listener listener = listenerWrap.listener;
         if (listenerWrap.inNotifying) {
+            // 正在通知流程中，跳过
             LOGGER.warn(
                     "[{}] [notify-currentSkip] dataId={}, group={}, md5={}, listener={}, listener is not finish yet,will try next time.",
                     name, dataId, group, md5, listener);
@@ -324,17 +327,22 @@ public class CacheData {
                 cr.setEncryptedDataKey(encryptedDataKey);
                 configFilterChainManager.doFilter(null, cr);
                 String contentTmp = cr.getContent();
+                // 标记正在通知流程中
                 listenerWrap.inNotifying = true;
+                // 通知listener
                 listener.receiveConfigInfo(contentTmp);
                 // compare lastContent and content
                 if (listener instanceof AbstractConfigChangeListener) {
                     Map<String, ConfigChangeItem> data = ConfigChangeHandler.getInstance()
                             .parseChangeData(listenerWrap.lastContent, contentTmp, type);
+                    // 通知listener内容有更新
                     ConfigChangeEvent event = new ConfigChangeEvent(data);
                     ((AbstractConfigChangeListener) listener).receiveConfigChange(event);
+                    // 更新wrapper内容
                     listenerWrap.lastContent = contentTmp;
                 }
-                
+
+                // 更新wrapper内容
                 listenerWrap.lastCallMd5 = md5;
                 LOGGER.info("[{}] [notify-ok] dataId={}, group={}, md5={}, listener={} ,cost={} millis.", name, dataId,
                         group, md5, listener, (System.currentTimeMillis() - start));
@@ -352,6 +360,7 @@ public class CacheData {
         
         final long startNotify = System.currentTimeMillis();
         try {
+            // 提交到线程池中执行（用户指定或者公共线程池）
             if (null != listener.getExecutor()) {
                 listener.getExecutor().execute(job);
             } else {

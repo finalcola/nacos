@@ -74,7 +74,9 @@ public class NacosConfigService implements ConfigService {
         ValidatorUtils.checkInitParam(properties);
         
         initNamespace(properties);
+        // ConfigFilter拦截请求
         this.configFilterChainManager = new ConfigFilterChainManager(properties);
+        // 管理Server地址
         ServerListManager serverListManager = new ServerListManager(properties);
         serverListManager.start();
         
