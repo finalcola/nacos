@@ -146,8 +146,10 @@ public class LocalConfigInfoProcessor {
                 }
                 
                 if (JvmUtil.isMultiInstance()) {
+                    // 多实例环境，会获取文件锁后再执行
                     ConcurrentDiskUtil.writeFileContent(file, config, Constants.ENCODE);
                 } else {
+                    // 直接写入
                     IoUtils.writeStringToFile(file, config, Constants.ENCODE);
                 }
             } catch (IOException ioe) {

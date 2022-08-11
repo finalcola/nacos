@@ -428,14 +428,17 @@ public class ClientWorker implements Closeable {
     private void refreshContentAndCheck(String groupKey, boolean notify) {
         if (cacheMap.get() != null && cacheMap.get().containsKey(groupKey)) {
             CacheData cache = cacheMap.get().get(groupKey);
+            // 从server拉取内容，并更新cache
             refreshContentAndCheck(cache, notify);
         }
     }
     
     private void refreshContentAndCheck(CacheData cacheData, boolean notify) {
         try {
+            // 从server拉取config内容
             ConfigResponse response = getServerConfig(cacheData.dataId, cacheData.group, cacheData.tenant, 3000L,
                     notify);
+            // 更新CacheData
             cacheData.setEncryptedDataKey(response.getEncryptedDataKey());
             cacheData.setContent(response.getContent());
             if (null != response.getConfigType()) {
@@ -446,6 +449,7 @@ public class ClientWorker implements Closeable {
                         agent.getName(), cacheData.dataId, cacheData.group, cacheData.tenant, cacheData.getMd5(),
                         ContentUtils.truncateContent(response.getContent()), response.getConfigType());
             }
+            // 比较md5，检查内容是否更新，并通知listener
             cacheData.checkListenerMd5();
         } catch (Exception e) {
             LOGGER.error("refresh content and check md5 fail ,dataId={},group={},tenant={} ", cacheData.dataId,
@@ -524,7 +528,8 @@ public class ClientWorker implements Closeable {
     }
     
     public class ConfigRpcTransportClient extends ConfigTransportClient {
-        
+
+        // 相当于一个标记，队列有元素则代表需要拉取配置
         private final BlockingQueue<Object> listenExecutebell = new ArrayBlockingQueue<>(1);
         
         private Object bellItem = new Object();
@@ -550,6 +555,7 @@ public class ClientWorker implements Closeable {
         public void shutdown() throws NacosException {
             super.shutdown();
             synchronized (RpcClientFactory.getAllClientEntries()) {
+                // 关闭grpc
                 LOGGER.info("Trying to shutdown transport client {}", this);
                 Set<Map.Entry<String, RpcClient>> allClientEntries = RpcClientFactory.getAllClientEntries();
                 Iterator<Map.Entry<String, RpcClient>> iterator = allClientEntries.iterator();
@@ -570,6 +576,7 @@ public class ClientWorker implements Closeable {
                 
                 LOGGER.info("Shutdown executor {}", executor);
                 executor.shutdown();
+                // 更新当前缓存的cache状态
                 Map<String, CacheData> stringCacheDataMap = cacheMap.get();
                 for (Map.Entry<String, CacheData> entry : stringCacheDataMap.entrySet()) {
                     entry.getValue().setSyncWithServer(false);
@@ -594,6 +601,8 @@ public class ClientWorker implements Closeable {
         private void initRpcClientHandler(final RpcClient rpcClientInner) {
             /*
              * Register Config Change /Config ReSync Handler
+             * 注册grpc请求的handler，处理config变更的请求
+             * ps.server不会直接下发内容，只是告诉client哪个key有更新
              */
             rpcClientInner.registerServerRequestHandler((request) -> {
                 if (request instanceof ConfigChangeNotifyRequest) {
@@ -609,7 +618,9 @@ public class ClientWorker implements Closeable {
                     if (cacheData != null) {
                         synchronized (cacheData) {
                             cacheData.getLastModifiedTs().set(System.currentTimeMillis());
+                            // 标记为需要从server同步配置
                             cacheData.setSyncWithServer(false);
+                            // 通知config有变更
                             notifyListenConfig();
                         }
                         
@@ -725,11 +736,10 @@ public class ClientWorker implements Closeable {
             // 是否需要全量同步(间隔5min)
             boolean needAllSync = now - lastAllSyncTime >= ALL_SYNC_INTERNAL;
             for (CacheData cache : cacheMap.get().values()) {
-                
                 synchronized (cache) {
                     
                     //check local listeners consistent.
-                    // 如果cache从server通过过，检查是否需要通知listener
+                    // isSyncWithServer-是否需要从server拉取
                     if (cache.isSyncWithServer()) {
                         cache.checkListenerMd5();
                         if (!needAllSync) {
@@ -778,10 +788,12 @@ public class ClientWorker implements Closeable {
                         timestampMap.put(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant),
                                 cacheData.getLastModifiedTs().longValue());
                     }
-                    
+
+                    // 构建批量拉取config的请求
                     ConfigBatchListenRequest configChangeListenRequest = buildConfigRequest(listenCaches);
                     configChangeListenRequest.setListen(true);
                     try {
+                        // 创建或拿到grpcClient
                         RpcClient rpcClient = ensureRpcClient(taskId);
                         ConfigChangeBatchListenResponse configChangeBatchListenResponse = (ConfigChangeBatchListenResponse) requestProxy(
                                 rpcClient, configChangeListenRequest);
@@ -789,6 +801,7 @@ public class ClientWorker implements Closeable {
                             
                             Set<String> changeKeys = new HashSet<>();
                             //handle changed keys,notify listener
+                            // 处理内容变更过的key，从server拉取内容，并通知listener
                             if (!CollectionUtils.isEmpty(configChangeBatchListenResponse.getChangedConfigs())) {
                                 hasChangedKeys = true;
                                 for (ConfigChangeBatchListenResponse.ConfigContext changeConfig : configChangeBatchListenResponse
@@ -798,6 +811,7 @@ public class ClientWorker implements Closeable {
                                                     changeConfig.getTenant());
                                     changeKeys.add(changeKey);
                                     boolean isInitializing = cacheMap.get().get(changeKey).isInitializing();
+                                    // 从server拉取内容，并更新cache
                                     refreshContentAndCheck(changeKey, !isInitializing);
                                 }
                                 
@@ -884,13 +898,16 @@ public class ClientWorker implements Closeable {
                 Map<String, String> labels = getLabels();
                 Map<String, String> newLabels = new HashMap<>(labels);
                 newLabels.put("taskId", taskId);
-                
+
+                // 每个taskId会创建一个grpcClient
                 RpcClient rpcClient = RpcClientFactory
                         .createClient(uuid + "_config-" + taskId, getConnectionType(), newLabels);
                 if (rpcClient.isWaitInitiated()) {
+                    // 初始化grpcClient(添加handler)
                     initRpcClientHandler(rpcClient);
                     rpcClient.setTenant(getTenant());
                     rpcClient.clientAbilities(initAbilities());
+                    // 启动grpc
                     rpcClient.start();
                 }
                 
@@ -946,6 +963,7 @@ public class ClientWorker implements Closeable {
                 throws NacosException {
             ConfigQueryRequest request = ConfigQueryRequest.build(dataId, group, tenant);
             request.putHeader(NOTIFY_HEADER, String.valueOf(notify));
+            // 拿到一个grpcClient
             RpcClient rpcClient = getOneRunningClient();
             if (notify) {
                 CacheData cacheData = cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));
@@ -953,10 +971,12 @@ public class ClientWorker implements Closeable {
                     rpcClient = ensureRpcClient(String.valueOf(cacheData.getTaskId()));
                 }
             }
+            // 查询config内容
             ConfigQueryResponse response = (ConfigQueryResponse) requestProxy(rpcClient, request, readTimeouts);
             
             ConfigResponse configResponse = new ConfigResponse();
             if (response.isSuccess()) {
+                // 保存到本地磁盘,作为快照
                 LocalConfigInfoProcessor.saveSnapshot(this.getName(), dataId, group, tenant, response.getContent());
                 configResponse.setContent(response.getContent());
                 String configType;
@@ -1081,9 +1101,9 @@ public class ClientWorker implements Closeable {
     public String getAgentName() {
         return this.agent.getName();
     }
-    
+
     public ConfigTransportClient getAgent() {
         return this.agent;
     }
-    
+
 }

@@ -130,8 +130,10 @@ public abstract class ConfigTransportClient {
      */
     public void start() throws NacosException {
         securityProxy.login(this.properties);
+        // 保持登录
         this.executor.scheduleWithFixedDelay(() -> securityProxy.login(properties), 0,
                 this.securityInfoRefreshIntervalMills, TimeUnit.MILLISECONDS);
+        // hook
         startInternal();
     }
     
