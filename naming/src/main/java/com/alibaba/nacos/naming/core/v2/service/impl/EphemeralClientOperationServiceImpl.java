@@ -66,10 +66,14 @@ public class EphemeralClientOperationServiceImpl implements ClientOperationServi
         if (!clientIsLegal(client, clientId)) {
             return;
         }
+        // 记录服务实例
         InstancePublishInfo instanceInfo = getPublishInfo(instance);
+        // 发布实例变更事件
         client.addServiceInstance(singleton, instanceInfo);
         client.setLastUpdatedTime();
+        // 发布client注册服务事件
         NotifyCenter.publishEvent(new ClientOperationEvent.ClientRegisterServiceEvent(singleton, clientId));
+        // 发布实例元数据变更事件
         NotifyCenter
                 .publishEvent(new MetadataEvent.InstanceMetadataEvent(singleton, instanceInfo.getMetadataId(), false));
     }

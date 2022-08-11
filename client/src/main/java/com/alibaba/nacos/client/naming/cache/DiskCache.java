@@ -85,6 +85,7 @@ public class DiskCache {
     
     /**
      * Read service info from disk.
+     * 读取磁盘中缓存的服务信息
      *
      * @param cacheDir cache file dir
      * @return service infos

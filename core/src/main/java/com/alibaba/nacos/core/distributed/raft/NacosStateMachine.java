@@ -75,7 +75,8 @@ class NacosStateMachine extends StateMachineAdapter {
     private final AtomicBoolean isLeader = new AtomicBoolean(false);
     
     private final String groupId;
-    
+
+    // 保存快照文件load、save时的回调操作
     private Collection<JSnapshotOperation> operations;
     
     private Node node;
@@ -106,9 +107,11 @@ class NacosStateMachine extends StateMachineAdapter {
                         message = closure.getMessage();
                     } else {
                         final ByteBuffer data = iter.getData();
+                        // 解析请求
                         message = ProtoMessageUtil.parse(data.array());
                         if (message instanceof ReadRequest) {
                             //'iter.done() == null' means current node is follower, ignore read operation
+                            // 'iter.done() == null'代表当前节点是follower，忽略读请求
                             applied++;
                             index++;
                             iter.next();
@@ -117,7 +120,8 @@ class NacosStateMachine extends StateMachineAdapter {
                     }
                     
                     LoggerUtils.printIfDebugEnabled(Loggers.RAFT, "receive log : {}", message);
-                    
+
+                    // 调用对应的Processor更新数据
                     if (message instanceof WriteRequest) {
                         Response response = processor.onApply((WriteRequest) message);
                         postProcessor(response, closure);

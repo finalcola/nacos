@@ -29,6 +29,7 @@ public class InstanceBeatCheckResponsibleInterceptor extends AbstractBeatCheckIn
 
     @Override
     public boolean intercept(InstanceBeatCheckTask object) {
+        // 检查是否由当前节点负责响应该client
         return !ApplicationUtils.getBean(DistroMapper.class).responsible(object.getClient().getResponsibleId());
     }
 

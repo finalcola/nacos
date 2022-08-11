@@ -68,6 +68,7 @@ public class ClientBeatCheckTaskV2 extends AbstractExecuteTask implements BeatCh
             for (Service each : services) {
                 HealthCheckInstancePublishInfo instance = (HealthCheckInstancePublishInfo) client
                         .getInstancePublishInfo(each);
+                // 拦截器主要用于检查心跳检查开关是否开启以及是否当前节点处理client
                 interceptorChain.doInterceptor(new InstanceBeatCheckTask(client, each, instance));
             }
         } catch (Exception e) {

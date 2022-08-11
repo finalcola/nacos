@@ -61,11 +61,13 @@ public class NacosExecuteTaskExecuteEngine extends AbstractNacosTaskExecuteEngin
     
     @Override
     public void addTask(Object tag, AbstractExecuteTask task) {
+        // 根据tag拿到Processor，如果有对应的Processor则交给Processor处理
         NacosTaskProcessor processor = getProcessor(tag);
         if (null != processor) {
             processor.process(task);
             return;
         }
+        // 没有processor，直接提交到线程池中执行
         TaskExecuteWorker worker = getWorker(tag);
         worker.process(task);
     }

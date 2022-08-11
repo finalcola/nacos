@@ -54,6 +54,7 @@ public class HealthCheckProcessorV2Delegate implements HealthCheckProcessorV2 {
     
     @Override
     public void process(HealthCheckTaskV2 task, Service service, ClusterMetadata metadata) {
+        // 健康检查类型，默认tcp
         String type = metadata.getHealthyCheckType();
         HealthCheckProcessorV2 processor = healthCheckProcessorMap.get(type);
         if (processor == null) {

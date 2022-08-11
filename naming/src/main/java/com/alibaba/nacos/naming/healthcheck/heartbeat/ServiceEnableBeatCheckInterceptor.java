@@ -34,6 +34,7 @@ public class ServiceEnableBeatCheckInterceptor extends AbstractBeatCheckIntercep
     public boolean intercept(InstanceBeatCheckTask object) {
         NamingMetadataManager metadataManager = ApplicationUtils.getBean(NamingMetadataManager.class);
         Optional<ServiceMetadata> metadata = metadataManager.getServiceMetadata(object.getService());
+        // 检查service是否开启client心跳检查
         if (metadata.isPresent() && metadata.get().getExtendData().containsKey(UtilsAndCommons.ENABLE_CLIENT_BEAT)) {
             return Boolean.parseBoolean(metadata.get().getExtendData().get(UtilsAndCommons.ENABLE_CLIENT_BEAT));
         }

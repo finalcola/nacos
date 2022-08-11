@@ -44,6 +44,7 @@ public class DistroMapper extends MemberChangeListener {
     
     /**
      * List of service nodes, you must ensure that the order of healthyList is the same for all nodes.
+     * 所有的server节点
      */
     private volatile List<String> healthyList = new ArrayList<>();
     
@@ -65,7 +66,9 @@ public class DistroMapper extends MemberChangeListener {
      */
     @PostConstruct
     public void init() {
+        // 注册server成员变更事件，更新成员列表
         NotifyCenter.registerSubscriber(this);
+        // 初始化
         this.healthyList = MemberUtil.simpleMembers(memberManager.allMembers());
     }
     
@@ -105,18 +108,21 @@ public class DistroMapper extends MemberChangeListener {
     
     /**
      * Calculate which other server response input tag.
+     * 计算出由那台server负责响应
      *
      * @param responsibleTag responsible tag, serviceName for v1 and ip:port for v2
      * @return server which response input service
      */
     public String mapSrv(String responsibleTag) {
         final List<String> servers = healthyList;
-        
+
+        // 如果当前服务列表还没有初始化号或者不允许转发，则由当前服务处理
         if (CollectionUtils.isEmpty(servers) || !switchDomain.isDistroEnabled()) {
             return EnvUtil.getLocalAddress();
         }
         
         try {
+            // 通过hash算法路由到一台服务
             int index = distroHash(responsibleTag) % servers.size();
             return servers.get(index);
         } catch (Throwable e) {

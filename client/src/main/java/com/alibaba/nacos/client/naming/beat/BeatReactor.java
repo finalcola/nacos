@@ -43,6 +43,7 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Beat reactor.
+ * 负责非持久化服务定时发送心跳（也会调用注册服务接口）
  *
  * @author harold
  */
@@ -175,14 +176,16 @@ public class BeatReactor implements Closeable {
             }
             long nextTime = beatInfo.getPeriod();
             try {
+                // 发送心跳请求
                 JsonNode result = serverProxy.sendBeat(beatInfo, BeatReactor.this.lightBeatEnabled);
                 long interval = result.get(CLIENT_BEAT_INTERVAL_FIELD).asLong();
-                boolean lightBeatEnabled = false;
+                boolean lightBeatEnabled = false; // 是否使用轻量级心跳请求
                 if (result.has(CommonParams.LIGHT_BEAT_ENABLED)) {
                     lightBeatEnabled = result.get(CommonParams.LIGHT_BEAT_ENABLED).asBoolean();
                 }
                 BeatReactor.this.lightBeatEnabled = lightBeatEnabled;
                 if (interval > 0) {
+                    // 下次发送心跳的间隔
                     nextTime = interval;
                 }
                 int code = NamingResponseCode.OK;
@@ -190,6 +193,7 @@ public class BeatReactor implements Closeable {
                     code = result.get(CommonParams.CODE).asInt();
                 }
                 if (code == NamingResponseCode.RESOURCE_NOT_FOUND) {
+                    // 服务还没有注册，则注册一次
                     Instance instance = new Instance();
                     instance.setPort(beatInfo.getPort());
                     instance.setIp(beatInfo.getIp());
@@ -213,6 +217,7 @@ public class BeatReactor implements Closeable {
                 NAMING_LOGGER.error("[CLIENT-BEAT] failed to send beat: {}, unknown exception msg: {}",
                         JacksonUtils.toJson(beatInfo), unknownEx.getMessage(), unknownEx);
             } finally {
+                // 继续调度
                 executorService.schedule(new BeatTask(beatInfo), nextTime, TimeUnit.MILLISECONDS);
             }
         }

@@ -99,6 +99,8 @@ public class DefaultPublisher extends Thread implements EventPublisher {
         try {
             
             // This variable is defined to resolve the problem which message overstock in the queue.
+            // 如果没有消费者，等待60s后就会开始丢弃队列中的event了，避免消息挤压
+            // 也就是说会为subscriber注册等待一段时间，这段时间内保存消息
             int waitTimes = 60;
             // To ensure that messages are not lost, enable EventHandler when
             // waiting for the first Subscriber to register
@@ -111,11 +113,14 @@ public class DefaultPublisher extends Thread implements EventPublisher {
             }
             
             for (; ; ) {
+                // 停机
                 if (shutdown) {
                     break;
                 }
+                // 从queue中取数据并通知观察者
                 final Event event = queue.take();
                 receiveEvent(event);
+                // 更新事件序号
                 UPDATER.compareAndSet(this, lastEventSequence, Math.max(lastEventSequence, event.sequence()));
             }
         } catch (Throwable ex) {
@@ -140,8 +145,10 @@ public class DefaultPublisher extends Thread implements EventPublisher {
     @Override
     public boolean publish(Event event) {
         checkIsStart();
+        // 添加到阻塞队列
         boolean success = this.queue.offer(event);
         if (!success) {
+            // 阻塞队列满后会尝试直接提交给观察者进行消费
             LOGGER.warn("Unable to plug in due to interruption, synchronize sending time, event : {}", event);
             receiveEvent(event);
             return true;

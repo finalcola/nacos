@@ -65,15 +65,18 @@ public class NacosNamingService implements NamingService {
     private String namespace;
     
     private String logName;
-    
+
+    // 负责存储实例信息
     private ServiceInfoHolder serviceInfoHolder;
-    
+
+    // 内部封装实例变化后通知listener的逻辑
     private InstancesChangeNotifier changeNotifier;
-    
+
+    // 代理namingClient接口
     private NamingClientProxy clientProxy;
     
     private String notifierEventScope;
-    
+
     public NacosNamingService(String serverList) throws NacosException {
         Properties properties = new Properties();
         properties.setProperty(PropertyKeyConst.SERVER_ADDR, serverList);
@@ -86,15 +89,21 @@ public class NacosNamingService implements NamingService {
     
     private void init(Properties properties) throws NacosException {
         ValidatorUtils.checkInitParam(properties);
+        // 从配置参数或者系统参数或者云服务参数中获取namespace，如果没有配置则使用默认的"public"
         this.namespace = InitUtils.initNamespaceForNaming(properties);
+        // 向jackson中注册selector类型的序列化
         InitUtils.initSerialization();
+        // 设置webContext
         InitUtils.initWebRootContext(properties);
         initLogName(properties);
-    
+
         this.notifierEventScope = UUID.randomUUID().toString();
+        // 内部封装实例变化后通知listener的逻辑
         this.changeNotifier = new InstancesChangeNotifier(this.notifierEventScope);
+        // 注册实例变更时间的publisher
         NotifyCenter.registerToPublisher(InstancesChangeEvent.class, 16384);
         NotifyCenter.registerSubscriber(changeNotifier);
+        // 代理namingClient接口
         this.serviceInfoHolder = new ServiceInfoHolder(namespace, this.notifierEventScope, properties);
         this.clientProxy = new NamingClientProxyDelegate(this.namespace, serviceInfoHolder, properties, changeNotifier);
     }
@@ -155,7 +164,7 @@ public class NacosNamingService implements NamingService {
         NamingUtils.batchCheckInstanceIsLegal(instances);
         clientProxy.batchRegisterService(serviceName, groupName, instances);
     }
-    
+
     @Override
     public void deregisterInstance(String serviceName, String ip, int port) throws NacosException {
         deregisterInstance(serviceName, ip, port, Constants.DEFAULT_CLUSTER_NAME);
@@ -400,6 +409,7 @@ public class NacosNamingService implements NamingService {
             return;
         }
         String clusterString = StringUtils.join(clusters, ",");
+        // 注册监听器
         changeNotifier.registerListener(groupName, serviceName, clusterString, listener);
         clientProxy.subscribe(serviceName, groupName, clusterString);
     }

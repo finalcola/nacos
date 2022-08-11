@@ -21,6 +21,8 @@ import java.lang.annotation.RetentionPolicy;
 
 /**
  * Annotation to determine if method should be redirected.
+ * 标识请求是否可以重定向到其他节点处理 {@link DistroFilter}
+ * ps.会根据请求的ip、port或者serviceName 的hashCode决定处理的节点
  *
  * @author nkorange
  * @since 1.0.0

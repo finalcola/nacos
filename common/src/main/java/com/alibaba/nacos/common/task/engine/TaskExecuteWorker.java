@@ -57,6 +57,7 @@ public final class TaskExecuteWorker implements NacosTaskProcessor, Closeable {
         this.queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
         this.closed = new AtomicBoolean(false);
         this.log = null == logger ? LoggerFactory.getLogger(TaskExecuteWorker.class) : logger;
+        // 开启一个线程，定时从queue中拉取task执行
         new InnerWorker(name).start();
     }
     

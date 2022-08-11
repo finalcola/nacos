@@ -65,6 +65,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
                     continue;
                 }
                 Subscriber subscriber = clientManager.getClient(each).getSubscriber(service);
+                // 获取服务的subscriber，并通过udp或者rpc推送最新的实例信息
                 delayTaskEngine.getPushExecutor().doPushWithCallback(each, subscriber, wrapper,
                         new ServicePushCallback(each, subscriber, wrapper.getOriginalData(), delayTask.isPushToAll()));
             }

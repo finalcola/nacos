@@ -38,7 +38,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<AbstractDelayTask> {
     
     private final ScheduledExecutorService processingExecutor;
-    
+
     protected final ConcurrentHashMap<Object, AbstractDelayTask> tasks;
     
     protected final ReentrantLock lock = new ReentrantLock();
@@ -63,6 +63,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
         super(logger);
         tasks = new ConcurrentHashMap<>(initCapacity);
         processingExecutor = ExecutorFactory.newSingleScheduledExecutorService(new NameThreadFactory(name));
+        // 定时处理队列中的任务
         processingExecutor
                 .scheduleWithFixedDelay(new ProcessRunnable(), processInterval, processInterval, TimeUnit.MILLISECONDS);
     }
@@ -91,6 +92,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     public AbstractDelayTask removeTask(Object key) {
         lock.lock();
         try {
+            // 从queue取出任务，如果达到了间隔时间从队列中移除准备执行
             AbstractDelayTask task = tasks.get(key);
             if (null != task && task.shouldProcess()) {
                 return tasks.remove(key);
@@ -140,10 +142,12 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     protected void processTasks() {
         Collection<Object> keys = getAllTaskKeys();
         for (Object taskKey : keys) {
+            // 取出队列中达到执行间隔的任务
             AbstractDelayTask task = removeTask(taskKey);
             if (null == task) {
                 continue;
             }
+            // 获取执行器
             NacosTaskProcessor processor = getProcessor(taskKey);
             if (null == processor) {
                 getEngineLog().error("processor not found for task, so discarded. " + task);
@@ -151,6 +155,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
             }
             try {
                 // ReAdd task if process failed
+                // 执行task，如果失败会重新添加到队列中
                 if (!processor.process(task)) {
                     retryFailedTask(taskKey, task);
                 }

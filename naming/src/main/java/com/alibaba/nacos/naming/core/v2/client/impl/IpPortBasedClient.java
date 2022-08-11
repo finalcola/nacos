@@ -127,6 +127,8 @@ public class IpPortBasedClient extends AbstractClient {
      */
     public void init() {
         if (ephemeral) {
+            // 检查心跳时间，修改健康状态或者移除实例
+            // ps.非持久化实例会定时上报心跳，所以task内部仅检查心跳时间戳完成实例过期、删除操作，没有主动进行心跳检测
             beatCheckTask = new ClientBeatCheckTaskV2(this);
             HealthCheckReactor.scheduleCheck(beatCheckTask);
         } else {

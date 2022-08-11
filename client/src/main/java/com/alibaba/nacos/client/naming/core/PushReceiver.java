@@ -37,6 +37,9 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Push receiver.
+ * 接收server的主动推送，目前推送的功能如下：
+ * 1、服务变更时server会主动push给client，及时更新服务信息
+ * 2、server会要求client上报当前的服务列表信息
  *
  * @author xuanyin
  */
@@ -67,6 +70,7 @@ public class PushReceiver implements Runnable, Closeable {
     public PushReceiver(ServiceInfoHolder serviceInfoHolder) {
         try {
             this.serviceInfoHolder = serviceInfoHolder;
+            // 接收nacos server主动push的upd端口
             String udpPort = getPushReceiverUdpPort();
             if (StringUtils.isEmpty(udpPort)) {
                 this.udpSocket = new DatagramSocket();
@@ -94,15 +98,18 @@ public class PushReceiver implements Runnable, Closeable {
                 // byte[] is initialized with 0 full filled by default
                 byte[] buffer = new byte[UDP_MSS];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                
+
+                // 接收数据
                 udpSocket.receive(packet);
                 
                 String json = new String(IoUtils.tryDecompress(packet.getData()), UTF_8).trim();
                 NAMING_LOGGER.info("received push data: " + json + " from " + packet.getAddress().toString());
                 
                 PushPacket pushPacket = JacksonUtils.toObj(json, PushPacket.class);
+                // 发送响应
                 String ack;
                 if (PUSH_PACKAGE_TYPE_DOM.equals(pushPacket.type) || PUSH_PACKAGE_TYPE_SERVICE.equals(pushPacket.type)) {
+                    // 更新服务
                     serviceInfoHolder.processServiceInfo(pushPacket.data);
                     
                     // send ack to server

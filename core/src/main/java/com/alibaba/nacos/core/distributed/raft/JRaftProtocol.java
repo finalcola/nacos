@@ -110,6 +110,7 @@ public class JRaftProtocol extends AbstractConsistencyProtocol<RaftConfig, Reque
     public JRaftProtocol(ServerMemberManager memberManager) throws Exception {
         this.memberManager = memberManager;
         this.raftServer = new JRaftServer();
+        // 用于执行jraftServer的命令
         this.jRaftMaintainService = new JRaftMaintainService(raftServer);
     }
     
@@ -117,6 +118,7 @@ public class JRaftProtocol extends AbstractConsistencyProtocol<RaftConfig, Reque
     public void init(RaftConfig config) {
         if (initialized.compareAndSet(false, true)) {
             this.raftConfig = config;
+            // 注册RaftEvent发布者
             NotifyCenter.registerToSharePublisher(RaftEvent.class);
             this.raftServer.init(this.raftConfig);
             this.raftServer.start();

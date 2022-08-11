@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The default share event publisher implementation for slow event.
- *
+ * 多个event公用的publisher
  * @author zongtanghu
  */
 public class DefaultSharePublisher extends DefaultPublisher implements ShardedEventPublisher {
@@ -45,6 +45,9 @@ public class DefaultSharePublisher extends DefaultPublisher implements ShardedEv
         
         lock.lock();
         try {
+            // todo maybe can opt @zhangyuanyou
+            // subMappings.computeIfAbsent(subSlowEventType, k -> new ConcurrentHashSet<>())
+            //  .add(subscriber);
             Set<Subscriber> sets = subMappings.get(subSlowEventType);
             if (sets == null) {
                 Set<Subscriber> newSet = new ConcurrentHashSet<>();

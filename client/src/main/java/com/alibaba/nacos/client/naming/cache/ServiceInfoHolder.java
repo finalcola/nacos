@@ -45,6 +45,7 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Naming client service information holder.
+ * 管理同步到的服务信息，并且内部FailoverReactor(本地磁盘持久化)提供容错机制
  *
  * @author xiweng.yy
  */
@@ -57,29 +58,36 @@ public class ServiceInfoHolder implements Closeable {
     private static final String FILE_PATH_NAMING = "naming";
     
     private static final String USER_HOME_PROPERTY = "user.home";
-    
+
+    // 保存所有服务的信息
     private final ConcurrentMap<String, ServiceInfo> serviceInfoMap;
-    
+
+    // 降级服务，将服务信息定时更新到磁盘，以便故障时仍可以返回磁盘中存储的服务数据
     private final FailoverReactor failoverReactor;
     
     private final boolean pushEmptyProtection;
-    
+
+    // 本地硬盘缓存的文件路径
     private String cacheDir;
     
     private String notifierEventScope;
-    
+
     public ServiceInfoHolder(String namespace, String notifierEventScope, Properties properties) {
+        // 根据namespace和配置初始化cacheDir（本地硬盘缓存的文件路径）
         initCacheDir(namespace, properties);
+        // 根据配置决定是否从本地磁盘加载之前缓存的服务列表
         if (isLoadCacheAtStart(properties)) {
             this.serviceInfoMap = new ConcurrentHashMap<>(DiskCache.read(this.cacheDir));
         } else {
             this.serviceInfoMap = new ConcurrentHashMap<>(16);
         }
+        // 降级服务，将服务信息定时更新到磁盘，以便故障时仍可以返回磁盘中存储的服务数据
         this.failoverReactor = new FailoverReactor(this, cacheDir);
         this.pushEmptyProtection = isPushEmptyProtect(properties);
         this.notifierEventScope = notifierEventScope;
     }
-    
+
+    // 根据namespace和配置初始化cacheDir（本地硬盘缓存的文件路径）
     private void initCacheDir(String namespace, Properties properties) {
         String jmSnapshotPath = System.getProperty(JM_SNAPSHOT_PATH_PROPERTY);
     
@@ -126,6 +134,7 @@ public class ServiceInfoHolder implements Closeable {
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
         String key = ServiceInfo.getKey(groupedServiceName, clusters);
         if (failoverReactor.isFailoverSwitch()) {
+            // 如果降级开关打开，则读取磁盘中的服务信息
             return failoverReactor.getService(key);
         }
         return serviceInfoMap.get(key);
@@ -157,9 +166,12 @@ public class ServiceInfoHolder implements Closeable {
         ServiceInfo oldService = serviceInfoMap.get(serviceInfo.getKey());
         if (isEmptyOrErrorPush(serviceInfo)) {
             //empty or error push, just ignore
+            // 拉取的服务是空的或有误，忽略，返回之前的历史信息
             return oldService;
         }
+        // 更新缓存
         serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
+        // 校验新老服务是否发生变更
         boolean changed = isChangedServiceInfo(oldService, serviceInfo);
         if (StringUtils.isBlank(serviceInfo.getJsonFromServer())) {
             serviceInfo.setJsonFromServer(JacksonUtils.toJson(serviceInfo));
@@ -168,8 +180,10 @@ public class ServiceInfoHolder implements Closeable {
         if (changed) {
             NAMING_LOGGER.info("current ips:({}) service: {} -> {}", serviceInfo.ipCount(), serviceInfo.getKey(),
                     JacksonUtils.toJson(serviceInfo.getHosts()));
+            // 发布服务实例变更事件
             NotifyCenter.publishEvent(new InstancesChangeEvent(notifierEventScope, serviceInfo.getName(), serviceInfo.getGroupName(),
                     serviceInfo.getClusters(), serviceInfo.getHosts()));
+            // 将服务信息写入本次磁盘
             DiskCache.write(serviceInfo, cacheDir);
         }
         return serviceInfo;

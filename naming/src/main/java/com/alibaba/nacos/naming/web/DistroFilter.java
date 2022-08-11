@@ -98,8 +98,10 @@ public class DistroFilter implements Filter {
                 filterChain.doFilter(req, resp);
                 return;
             }
+            // 生成标记（grpc使用ip+端口，普通的使用服务名）,基于标记hash决定由哪台机器处理请求
             String distroTag = distroTagGenerator.getResponsibleTag(req);
-            
+
+            // 自己处理请求
             if (distroMapper.responsible(distroTag)) {
                 filterChain.doFilter(req, resp);
                 return;
@@ -115,9 +117,11 @@ public class DistroFilter implements Filter {
                         "receive invalid redirect request from peer " + req.getRemoteAddr());
                 return;
             }
-            
+
+            // 基于hash计算出由那台server处理请求
             final String targetServer = distroMapper.mapSrv(distroTag);
-            
+
+            // copy一份请求头和body
             List<String> headerList = new ArrayList<>(16);
             Enumeration<String> headers = req.getHeaderNames();
             while (headers.hasMoreElements()) {
@@ -128,12 +132,14 @@ public class DistroFilter implements Filter {
             
             final String body = IoUtils.toString(req.getInputStream(), StandardCharsets.UTF_8.name());
             final Map<String, String> paramsValue = HttpClient.translateParameterMap(req.getParameterMap());
-            
+
+            // 请求指定的server（可能会出现自己请求自己）
             RestResult<String> result = HttpClient
                     .request(HTTP_PREFIX + targetServer + req.getRequestURI(), headerList, paramsValue, body,
                             PROXY_CONNECT_TIMEOUT, PROXY_READ_TIMEOUT, StandardCharsets.UTF_8.name(), req.getMethod());
             String data = result.ok() ? result.getData() : result.getMessage();
             try {
+                // 返回响应
                 WebUtils.response(resp, data, result.getCode());
             } catch (Exception ignore) {
                 Loggers.SRV_LOG.warn("[DISTRO-FILTER] request failed: " + distroMapper.mapSrv(distroTag) + urlString);

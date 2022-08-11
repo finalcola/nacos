@@ -46,6 +46,7 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Failover reactor.
+ * 降级服务，将服务信息定时更新到磁盘，以便故障时仍可以返回磁盘中存储的服务数据
  *
  * @author nkorange
  */
@@ -58,7 +59,8 @@ public class FailoverReactor implements Closeable {
     private static final String NO_FAILOVER_MODE = "0";
     
     private static final String FAILOVER_MODE_PARAM = "failover-mode";
-    
+
+    // 保存磁盘文件中解析到的ServiceInfo
     private Map<String, ServiceInfo> serviceMap = new ConcurrentHashMap<>();
     
     private final Map<String, String> switchParams = new ConcurrentHashMap<>();
@@ -81,6 +83,7 @@ public class FailoverReactor implements Closeable {
             thread.setName("com.alibaba.nacos.naming.failover");
             return thread;
         });
+        // 开启持久化的线程
         this.init();
     }
     
@@ -88,12 +91,13 @@ public class FailoverReactor implements Closeable {
      * Init.
      */
     public void init() {
-        
+        // 定时检查本地一个文件控制是否开启failover,开启后会读取failover目录中保存的服务信息
         executorService.scheduleWithFixedDelay(new SwitchRefresher(), 0L, 5000L, TimeUnit.MILLISECONDS);
-        
+        // 定时将ServiceHolder中的服务信息持久化到磁盘
         executorService.scheduleWithFixedDelay(new DiskFileWriter(), 30, DAY_PERIOD_MINUTES, TimeUnit.MINUTES);
         
         // backup file on startup if failover directory is empty.
+        // 启动后如果failover文件夹是空，则执行一次持久化操作
         executorService.schedule(() -> {
             try {
                 File cacheDir = new File(failoverDir);
@@ -142,6 +146,7 @@ public class FailoverReactor implements Closeable {
         @Override
         public void run() {
             try {
+                // 用本地的一个文件标识failover的开关
                 File switchFile = new File(failoverDir + UtilAndComs.FAILOVER_SWITCH);
                 if (!switchFile.exists()) {
                     switchParams.put(FAILOVER_MODE_PARAM, Boolean.FALSE.toString());
@@ -150,9 +155,11 @@ public class FailoverReactor implements Closeable {
                 }
                 
                 long modified = switchFile.lastModified();
-                
+
+                // 更新时间戳，识别文件是否修改
                 if (lastModifiedMillis < modified) {
                     lastModifiedMillis = modified;
+                    // 读取文件内容，如果存在一行内容为"1"表示开关打开，如果为"0"则关闭
                     String failover = ConcurrentDiskUtil.getFileContent(failoverDir + UtilAndComs.FAILOVER_SWITCH,
                             Charset.defaultCharset().toString());
                     if (!StringUtils.isEmpty(failover)) {
@@ -163,6 +170,7 @@ public class FailoverReactor implements Closeable {
                             if (IS_FAILOVER_MODE.equals(line1)) {
                                 switchParams.put(FAILOVER_MODE_PARAM, Boolean.TRUE.toString());
                                 NAMING_LOGGER.info("failover-mode is on");
+                                // 读取本地磁盘中持久化的服务信息
                                 new FailoverFileReader().run();
                             } else if (NO_FAILOVER_MODE.equals(line1)) {
                                 switchParams.put(FAILOVER_MODE_PARAM, Boolean.FALSE.toString());
@@ -198,7 +206,7 @@ public class FailoverReactor implements Closeable {
                 if (files == null) {
                     return;
                 }
-                
+                // 遍历faliover的文件，读取磁盘中保存的服务实例信息
                 for (File file : files) {
                     if (!file.isFile()) {
                         continue;
@@ -207,7 +215,8 @@ public class FailoverReactor implements Closeable {
                     if (file.getName().equals(UtilAndComs.FAILOVER_SWITCH)) {
                         continue;
                     }
-                    
+
+                    // 解析ServiceInfo
                     ServiceInfo dom = new ServiceInfo(file.getName());
                     
                     try {
@@ -242,7 +251,7 @@ public class FailoverReactor implements Closeable {
             } catch (Exception e) {
                 NAMING_LOGGER.error("[NA] failed to read cache file", e);
             }
-            
+
             if (domMap.size() > 0) {
                 serviceMap = domMap;
             }
@@ -253,6 +262,7 @@ public class FailoverReactor implements Closeable {
         
         @Override
         public void run() {
+            // 遍历最新的服务信息，持久化到磁盘
             Map<String, ServiceInfo> map = serviceInfoHolder.getServiceInfoMap();
             for (Map.Entry<String, ServiceInfo> entry : map.entrySet()) {
                 ServiceInfo serviceInfo = entry.getValue();

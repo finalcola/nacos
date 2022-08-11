@@ -53,6 +53,9 @@ import static com.alibaba.nacos.common.constant.RequestUrlConstants.HTTP_PREFIX;
 
 /**
  * Server list manager.
+ * 管理nacos server列表，server配置有两种方式
+ * 1、配置endpoint，会有线程定时访问该服务的http接口拉取nacos服务列表
+ * 2、properties文件中写死
  *
  * @author xiweng.yy
  */
@@ -63,7 +66,8 @@ public class ServerListManager implements ServerListFactory, Closeable {
     private final long refreshServerListInternal = TimeUnit.SECONDS.toMillis(30);
     
     private final String namespace;
-    
+
+    // 当配置了多个server，会采用轮训的方式访问
     private final AtomicInteger currentIndex = new AtomicInteger();
     
     private final List<String> serverList = new ArrayList<>();
@@ -71,7 +75,8 @@ public class ServerListManager implements ServerListFactory, Closeable {
     private volatile List<String> serversFromEndpoint = new ArrayList<>();
     
     private ScheduledExecutorService refreshServerListExecutor;
-    
+
+    // 部署endpoint服务的地址，定时从这个地址读取nacos的服务器列表
     private String endpoint;
     
     private String nacosDomain;
@@ -84,6 +89,7 @@ public class ServerListManager implements ServerListFactory, Closeable {
     
     public ServerListManager(Properties properties, String namespace) {
         this.namespace = namespace;
+        // 根据配置文件初始化nacos的server地址（动态部署的endpoint模式或者静态配置两种方式）
         initServerAddr(properties);
         if (!serverList.isEmpty()) {
             currentIndex.set(new Random().nextInt(serverList.size()));
@@ -94,8 +100,10 @@ public class ServerListManager implements ServerListFactory, Closeable {
     }
     
     private void initServerAddr(Properties properties) {
+        // 读取配置文件中的serverList服务的ip\端口
         this.endpoint = InitUtils.initEndpoint(properties);
         if (StringUtils.isNotEmpty(endpoint)) {
+            // 定时从endpoint读取nacos服务器列表
             this.serversFromEndpoint = getServerListFromEndpoint();
             refreshServerListExecutor = new ScheduledThreadPoolExecutor(1,
                     new NameThreadFactory("com.alibaba.nacos.client.naming.server.list.refresher"));
@@ -103,6 +111,7 @@ public class ServerListManager implements ServerListFactory, Closeable {
                     .scheduleWithFixedDelay(this::refreshServerListIfNeed, 0, refreshServerListInternal,
                             TimeUnit.MILLISECONDS);
         } else {
+            // 配置中静态配置的服务器列表
             String serverListFromProps = properties.getProperty(PropertyKeyConst.SERVER_ADDR);
             if (StringUtils.isNotEmpty(serverListFromProps)) {
                 this.serverList.addAll(Arrays.asList(serverListFromProps.split(",")));
@@ -112,7 +121,8 @@ public class ServerListManager implements ServerListFactory, Closeable {
             }
         }
     }
-    
+
+    // 定时从endpoint读取nacos服务器列表
     private List<String> getServerListFromEndpoint() {
         try {
             String urlString = HTTP_PREFIX + endpoint + "/nacos/serverlist";
@@ -138,7 +148,8 @@ public class ServerListManager implements ServerListFactory, Closeable {
         }
         return null;
     }
-    
+
+    // 从endpoint刷新server列表
     private void refreshServerListIfNeed() {
         try {
             if (!CollectionUtils.isEmpty(serverList)) {
@@ -148,6 +159,7 @@ public class ServerListManager implements ServerListFactory, Closeable {
             if (System.currentTimeMillis() - lastServerListRefreshTime < refreshServerListInternal) {
                 return;
             }
+            // 定时从endpoint读取nacos服务器列表
             List<String> list = getServerListFromEndpoint();
             if (CollectionUtils.isEmpty(list)) {
                 throw new Exception("Can not acquire Nacos list");
@@ -156,6 +168,7 @@ public class ServerListManager implements ServerListFactory, Closeable {
                 NAMING_LOGGER.info("[SERVER-LIST] server list is updated: " + list);
                 serversFromEndpoint = list;
                 lastServerListRefreshTime = System.currentTimeMillis();
+                // 发布nacos server更新的事件
                 NotifyCenter.publishEvent(new ServerListChangedEvent());
             }
         } catch (Throwable e) {
@@ -178,12 +191,14 @@ public class ServerListManager implements ServerListFactory, Closeable {
     
     @Override
     public String genNextServer() {
+        // todo 线程安全问题fix @zhangyuanyou
         int index = currentIndex.incrementAndGet() % getServerList().size();
         return getServerList().get(index);
     }
     
     @Override
     public String getCurrentServer() {
+        // todo 线程安全问题fix @zhangyuanyou
         return getServerList().get(currentIndex.get() % getServerList().size());
     }
     

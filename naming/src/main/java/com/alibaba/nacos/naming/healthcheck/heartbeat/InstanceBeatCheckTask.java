@@ -27,6 +27,7 @@ import java.util.List;
 
 /**
  * Instance beat check task.
+ * 检查实例的心跳，并以此修改健康状态以及移除节点
  *
  * @author xiweng.yy
  */
@@ -54,6 +55,7 @@ public class InstanceBeatCheckTask implements Interceptable {
     
     @Override
     public void passIntercept() {
+        // 检查实例
         for (InstanceBeatChecker each : CHECKERS) {
             each.doCheck(client, service, instancePublishInfo);
         }

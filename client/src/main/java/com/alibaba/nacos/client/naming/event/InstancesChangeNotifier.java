@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A subscriber to notify eventListener callback.
- *
+ * 关注InstancesChangeEvent实例变更事件，内部再将时间分发给内部的listener
  * @author horizonzy
  * @since 1.4.1
  */

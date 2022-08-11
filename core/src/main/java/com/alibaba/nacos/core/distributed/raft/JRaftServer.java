@@ -113,7 +113,7 @@ public class JRaftServer {
     private CliService cliService;
     
     // Ordinary member variable
-    
+    // 每个group的reaft集群信息
     private Map<String, RaftGroupTuple> multiRaftGroup = new ConcurrentHashMap<>();
     
     private volatile boolean isStarted = false;
@@ -155,8 +155,10 @@ public class JRaftServer {
         this.serializer = SerializeFactory.getDefault();
         Loggers.RAFT.info("Initializes the Raft protocol, raft-config info : {}", config);
         RaftExecutor.init(config);
-        
+
+        // 当前节点的地址
         final String self = config.getSelfMember();
+        // 解析ip、端口
         String[] info = InternetAddressUtil.splitIPPortStr(self);
         selfIp = info[0];
         selfPort = Integer.parseInt(info[1]);
@@ -164,12 +166,14 @@ public class JRaftServer {
         nodeOptions = new NodeOptions();
         
         // Set the election timeout time. The default is 5 seconds.
+        // 选举超时时间，默认5s
         int electionTimeout = Math.max(ConvertUtils.toInt(config.getVal(RaftSysConstants.RAFT_ELECTION_TIMEOUT_MS),
                 RaftSysConstants.DEFAULT_ELECTION_TIMEOUT), RaftSysConstants.DEFAULT_ELECTION_TIMEOUT);
         
         rpcRequestTimeoutMs = ConvertUtils.toInt(raftConfig.getVal(RaftSysConstants.RAFT_RPC_REQUEST_TIMEOUT_MS),
                 RaftSysConstants.DEFAULT_RAFT_RPC_REQUEST_TIMEOUT_MS);
-        
+
+        // 设置参数
         nodeOptions.setSharedElectionTimer(true);
         nodeOptions.setSharedVoteTimer(true);
         nodeOptions.setSharedStepDownTimer(true);
@@ -182,7 +186,7 @@ public class JRaftServer {
         nodeOptions.setEnableMetrics(true);
         
         CliOptions cliOptions = new CliOptions();
-        
+
         this.cliService = RaftServiceFactory.createAndInitCliService(cliOptions);
         this.cliClientService = (CliClientServiceImpl) ((CliServiceImpl) this.cliService).getCliClientService();
     }
@@ -199,7 +203,8 @@ public class JRaftServer {
                     raftNodeManager.addAddress(peerId.getEndpoint());
                 }
                 nodeOptions.setInitialConf(conf);
-                
+
+                // 初始化rpc服务器，内部会注册一些解析器、请求handler
                 rpcServer = JRaftUtils.initRpcServer(this, localPeerId);
                 
                 if (!this.rpcServer.init(null)) {
@@ -209,6 +214,7 @@ public class JRaftServer {
                 
                 // Initialize multi raft group service framework
                 isStarted = true;
+                // 创建jraftGroupService
                 createMultiRaftGroup(processors);
                 Loggers.RAFT.info("========= The raft protocol start finished... =========");
             } catch (Exception e) {
@@ -236,16 +242,20 @@ public class JRaftServer {
             // Ensure that each Raft Group has its own configuration and NodeOptions
             Configuration configuration = conf.copy();
             NodeOptions copy = nodeOptions.copy();
+            // 创建文件夹
             JRaftUtils.initDirectory(parentPath, groupName, copy);
             
             // Here, the LogProcessor is passed into StateMachine, and when the StateMachine
             // triggers onApply, the onApply of the LogProcessor is actually called
+            // 创建状态机，当onApply被调用的时候会触发processor
+            // 为每种类型的proces都创建一个状态机
             NacosStateMachine machine = new NacosStateMachine(this, processor);
             
             copy.setFsm(machine);
             copy.setInitialConf(configuration);
             
             // Set snapshot interval, default 1800 seconds
+            // 上传快照的间隔
             int doSnapshotInterval = ConvertUtils.toInt(raftConfig.getVal(RaftSysConstants.RAFT_SNAPSHOT_INTERVAL_SECS),
                     RaftSysConstants.DEFAULT_RAFT_SNAPSHOT_INTERVAL_SECS);
             
@@ -254,13 +264,15 @@ public class JRaftServer {
             
             copy.setSnapshotIntervalSecs(doSnapshotInterval);
             Loggers.RAFT.info("create raft group : {}", groupName);
+            // 启动raft group
             RaftGroupService raftGroupService = new RaftGroupService(groupName, localPeerId, copy, rpcServer, true);
     
             // Because BaseRpcServer has been started before, it is not allowed to start again here
             Node node = raftGroupService.start(false);
             machine.setNode(node);
             RouteTable.getInstance().updateConfiguration(groupName, configuration);
-            
+
+            // 注册到集群中
             RaftExecutor.executeByCommon(() -> registerSelfToCluster(groupName, localPeerId, configuration));
             
             // Turn on the leader auto refresh for this group
@@ -334,6 +346,7 @@ public class JRaftServer {
             applyOperation(node, data, closure);
         } else {
             // Forward to Leader for request processing
+            // 转发给leader节点
             invokeToLeader(group, data, rpcRequestTimeoutMs, closure);
         }
         return future;
@@ -350,10 +363,13 @@ public class JRaftServer {
     void registerSelfToCluster(String groupId, PeerId selfIp, Configuration conf) {
         for (; ; ) {
             try {
+                // 获取当前的集群节点列表
                 List<PeerId> peerIds = cliService.getPeers(groupId, conf);
+                // 在集群中，返回
                 if (peerIds.contains(selfIp)) {
                     return;
                 }
+                // 加入集群
                 Status status = cliService.addPeer(groupId, conf, selfIp);
                 if (status.isOk()) {
                     return;
@@ -396,6 +412,7 @@ public class JRaftServer {
     
     public void applyOperation(Node node, Message data, FailoverClosure closure) {
         final Task task = new Task();
+        // 设置回调，在task执行成功后，回调closure
         task.setDone(new NacosClosure(data, status -> {
             NacosClosure.NacosStatus nacosStatus = (NacosClosure.NacosStatus) status;
             closure.setThrowable(nacosStatus.getThrowable());
@@ -411,10 +428,12 @@ public class JRaftServer {
         } else {
             requestTypeFieldBytes[1] = ProtoMessageUtil.REQUEST_TYPE_WRITE;
         }
-        
+
+        // 构建task数据
         byte[] dataBytes = data.toByteArray();
         task.setData((ByteBuffer) ByteBuffer.allocate(requestTypeFieldBytes.length + dataBytes.length)
                 .put(requestTypeFieldBytes).put(dataBytes).position(0));
+        // 应用到状态机
         node.apply(task);
     }
     

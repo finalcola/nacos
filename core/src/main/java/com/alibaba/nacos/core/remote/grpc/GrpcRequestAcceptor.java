@@ -87,6 +87,7 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
         }
         
         // server check.
+        // 处理心跳请求
         if (ServerCheckRequest.class.getSimpleName().equals(type)) {
             Payload serverCheckResponseP = GrpcUtils.convert(new ServerCheckResponse(CONTEXT_KEY_CONN_ID.get()));
             traceIfNecessary(serverCheckResponseP, false);
@@ -94,7 +95,8 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
             responseObserver.onCompleted();
             return;
         }
-        
+
+        // 获取执行器
         RequestHandler requestHandler = requestHandlerRegistry.getByRequestType(type);
         //no handler found.
         if (requestHandler == null) {
@@ -108,6 +110,7 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
         }
         
         //check connection status.
+        // 校验一些连接状态
         String connectionId = CONTEXT_KEY_CONN_ID.get();
         boolean requestValid = connectionManager.checkValid(connectionId);
         if (!requestValid) {
@@ -164,7 +167,9 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
             requestMeta.setConnectionId(CONTEXT_KEY_CONN_ID.get());
             requestMeta.setClientVersion(connection.getMetaInfo().getVersion());
             requestMeta.setLabels(connection.getMetaInfo().getLabels());
+            // 刷新心跳时间
             connectionManager.refreshActiveTime(requestMeta.getConnectionId());
+            // 调用handler处理请求
             Response response = requestHandler.handleRequest(request, requestMeta);
             Payload payloadResponse = GrpcUtils.convert(response);
             traceIfNecessary(payloadResponse, false);

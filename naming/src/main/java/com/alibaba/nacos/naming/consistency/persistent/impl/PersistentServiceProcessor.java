@@ -97,6 +97,7 @@ public class PersistentServiceProcessor extends BasePersistentServiceProcessor {
     
     @Override
     public void put(String key, Record value) throws NacosException {
+        // 写入jraft
         final BatchWriteRequest req = new BatchWriteRequest();
         Datum datum = Datum.createDatum(key, value);
         req.append(ByteUtils.toBytes(key), serializer.serialize(datum));

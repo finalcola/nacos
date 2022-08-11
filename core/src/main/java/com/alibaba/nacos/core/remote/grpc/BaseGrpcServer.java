@@ -90,6 +90,7 @@ public abstract class BaseGrpcServer extends BaseRpcServer {
         final MutableHandlerRegistry handlerRegistry = new MutableHandlerRegistry();
         
         // server interceptor to set connection id.
+        // grpc拦截器，设置连接id、ip、端口等
         ServerInterceptor serverInterceptor = new ServerInterceptor() {
             @Override
             public <T, S> ServerCall.Listener<T> interceptCall(ServerCall<T, S> call, Metadata headers,

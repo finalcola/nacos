@@ -108,6 +108,7 @@ public class GrpcBiStreamRequestAcceptor extends BiRequestStreamGrpc.BiRequestSt
                     return;
                 }
                 if (parseObj instanceof ConnectionSetupRequest) {
+                    // client创建链接完成后的请求
                     ConnectionSetupRequest setUpRequest = (ConnectionSetupRequest) parseObj;
                     Map<String, String> labels = setUpRequest.getLabels();
                     String appName = "-";
@@ -122,12 +123,14 @@ public class GrpcBiStreamRequestAcceptor extends BiRequestStreamGrpc.BiRequestSt
                     Connection connection = new GrpcConnection(metaInfo, responseObserver, CONTEXT_KEY_CHANNEL.get());
                     connection.setAbilities(setUpRequest.getAbilities());
                     boolean rejectSdkOnStarting = metaInfo.isSdkSource() && !ApplicationUtils.isStarted();
-                    
+
+                    // 注册连接信息
                     if (rejectSdkOnStarting || !connectionManager.register(connectionId, connection)) {
                         //Not register to the connection manager if current server is over limit or server is starting.
                         try {
                             Loggers.REMOTE_DIGEST.warn("[{}]Connection register fail,reason:{}", connectionId,
                                     rejectSdkOnStarting ? " server is not started" : " server is over limited.");
+                            // 注册失败，通知client需要重置连接
                             connection.request(new ConnectResetRequest(), 3000L);
                             connection.close();
                         } catch (Exception e) {

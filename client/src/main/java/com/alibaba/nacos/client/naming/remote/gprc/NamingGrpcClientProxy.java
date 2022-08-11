@@ -68,7 +68,8 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
     
     private final String namespaceId;
-    
+
+    // 使用uuid作为clientName
     private final String uuid;
     
     private final Long requestTimeout;
@@ -81,6 +82,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
             Properties properties, ServiceInfoHolder serviceInfoHolder) throws NacosException {
         super(securityProxy);
         this.namespaceId = namespaceId;
+        // 使用uuid作为clientName
         this.uuid = UUID.randomUUID().toString();
         this.requestTimeout = Long.parseLong(properties.getProperty(CommonParams.NAMING_REQUEST_TIMEOUT, "-1"));
         Map<String, String> labels = new HashMap<>();
@@ -236,6 +238,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
         if (NAMING_LOGGER.isDebugEnabled()) {
             NAMING_LOGGER.debug("[GRPC-SUBSCRIBE] service:{}, group:{}, cluster:{} ", serviceName, groupName, clusters);
         }
+        // 将订阅的服务缓存起来，用于grpc连接异常后重试
         redoService.cacheSubscriberForRedo(serviceName, groupName, clusters);
         return doSubscribe(serviceName, groupName, clusters);
     }
@@ -253,6 +256,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
         SubscribeServiceRequest request = new SubscribeServiceRequest(namespaceId, groupName, serviceName, clusters,
                 true);
         SubscribeServiceResponse response = requestToServer(request, SubscribeServiceResponse.class);
+        // 标记服务已经订阅成功了
         redoService.subscriberRegistered(serviceName, groupName, clusters);
         return response.getServiceInfo();
     }

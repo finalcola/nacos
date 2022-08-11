@@ -103,6 +103,7 @@ public class PersistentClientOperationServiceImpl extends RequestProcessor4CP im
                     String.format("Current service %s is ephemeral service, can't register persistent instance.",
                             singleton.getGroupedServiceName()));
         }
+        // 通过jraft写入实例
         final InstanceStoreRequest request = new InstanceStoreRequest();
         request.setService(service);
         request.setInstance(instance);

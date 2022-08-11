@@ -58,9 +58,10 @@ public abstract class AbstractClient implements Client {
     public long getLastUpdatedTime() {
         return lastUpdatedTime;
     }
-    
+
     @Override
     public boolean addServiceInstance(Service service, InstancePublishInfo instancePublishInfo) {
+        // 记录实例信息
         if (null == publishers.put(service, instancePublishInfo)) {
             if (instancePublishInfo instanceof BatchInstancePublishInfo) {
                 MetricsMonitor.incrementIpCountWithBatchRegister(instancePublishInfo);
@@ -68,6 +69,7 @@ public abstract class AbstractClient implements Client {
                 MetricsMonitor.incrementInstanceCount();
             }
         }
+        // 发布client变更事件
         NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
         Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
         return true;

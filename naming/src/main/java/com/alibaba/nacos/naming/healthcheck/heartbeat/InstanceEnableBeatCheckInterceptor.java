@@ -37,6 +37,7 @@ public class InstanceEnableBeatCheckInterceptor extends AbstractBeatCheckInterce
         NamingMetadataManager metadataManager = ApplicationUtils.getBean(NamingMetadataManager.class);
         HealthCheckInstancePublishInfo instance = object.getInstancePublishInfo();
         Optional<InstanceMetadata> metadata = metadataManager.getInstanceMetadata(object.getService(), instance.getMetadataId());
+        // 检查实例是否开启了心跳检查
         if (metadata.isPresent() && metadata.get().getExtendData().containsKey(UtilsAndCommons.ENABLE_CLIENT_BEAT)) {
             return ConvertUtils.toBoolean(metadata.get().getExtendData().get(UtilsAndCommons.ENABLE_CLIENT_BEAT).toString());
         }

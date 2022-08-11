@@ -52,9 +52,11 @@ public class DoubleWriteInstanceChangeToV1Task extends AbstractExecuteTask {
             com.alibaba.nacos.naming.core.Service serviceV1 = serviceManager
                     .getService(service.getNamespace(), service.getGroupedServiceName());
             if (null == serviceV1) {
+                // 新建Service
                 serviceManager.createEmptyService(service.getNamespace(), service.getGroupedServiceName(),
                         service.isEphemeral());
             }
+            // 新版本的实例信息
             Instances newInstances = getNewInstances();
             String key = KeyBuilder.buildInstanceListKey(service.getNamespace(), service.getGroupedServiceName(),
                     service.isEphemeral());

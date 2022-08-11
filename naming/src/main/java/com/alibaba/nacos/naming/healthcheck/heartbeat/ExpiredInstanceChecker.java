@@ -55,6 +55,7 @@ public class ExpiredInstanceChecker implements InstanceBeatChecker {
     }
     
     private boolean isExpireInstance(Service service, HealthCheckInstancePublishInfo instance) {
+        // 判断上次心跳间隔是否超过配置的删除节点时间（默认30s）
         long deleteTimeout = getTimeout(service, instance);
         return System.currentTimeMillis() - instance.getLastHeartBeatTime() > deleteTimeout;
     }
@@ -75,6 +76,7 @@ public class ExpiredInstanceChecker implements InstanceBeatChecker {
     
     private void deleteIp(Client client, Service service, InstancePublishInfo instance) {
         Loggers.SRV_LOG.info("[AUTO-DELETE-IP] service: {}, ip: {}", service.toString(), JacksonUtils.toJson(instance));
+        // 删除服务实例并发布事件
         client.removeServiceInstance(service);
         NotifyCenter.publishEvent(new ClientOperationEvent.ClientDeregisterServiceEvent(service, client.getClientId()));
         NotifyCenter.publishEvent(new MetadataEvent.InstanceMetadataEvent(service, instance.getMetadataId(), true));

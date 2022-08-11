@@ -51,23 +51,25 @@ public class InitUtils {
      */
     public static String initNamespaceForNaming(Properties properties) {
         String tmpNamespace = null;
-        
+
+        // 启动参数中获取namespace
         String isUseCloudNamespaceParsing = properties.getProperty(PropertyKeyConst.IS_USE_CLOUD_NAMESPACE_PARSING,
                 System.getProperty(SystemPropertyKeyConst.IS_USE_CLOUD_NAMESPACE_PARSING,
                         String.valueOf(Constants.DEFAULT_USE_CLOUD_NAMESPACE_PARSING)));
-        
+
+        // 从阿里ans云服务中获取namespace
         if (Boolean.parseBoolean(isUseCloudNamespaceParsing)) {
-            
             tmpNamespace = TenantUtil.getUserTenantForAns();
             LogUtils.NAMING_LOGGER.info("initializer namespace from System Property : {}", tmpNamespace);
-            
+
+
             tmpNamespace = TemplateUtils.stringEmptyAndThenExecute(tmpNamespace, () -> {
                 String namespace = System.getenv(PropertyKeyConst.SystemEnv.ALIBABA_ALIWARE_NAMESPACE);
                 LogUtils.NAMING_LOGGER.info("initializer namespace from System Environment :" + namespace);
                 return namespace;
             });
         }
-        
+
         tmpNamespace = TemplateUtils.stringEmptyAndThenExecute(tmpNamespace, () -> {
             String namespace = System.getProperty(PropertyKeyConst.NAMESPACE);
             LogUtils.NAMING_LOGGER.info("initializer namespace from System Property :" + namespace);
@@ -77,7 +79,8 @@ public class InitUtils {
         if (StringUtils.isEmpty(tmpNamespace)) {
             tmpNamespace = properties.getProperty(PropertyKeyConst.NAMESPACE);
         }
-        
+
+        // 没有配置，使用默认的"public"
         tmpNamespace = TemplateUtils.stringEmptyAndThenExecute(tmpNamespace, () -> UtilAndComs.DEFAULT_NAMESPACE_ID);
         return tmpNamespace;
     }
@@ -114,6 +117,7 @@ public class InitUtils {
     
     /**
      * Init end point.
+     * 读取配置文件中的ip、端口
      *
      * @param properties properties
      * @return end point

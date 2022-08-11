@@ -42,11 +42,12 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Service information update service.
- *
+ * 负责定时拉取服务信息并通知ServiceInfoHolder
  * @author xiweng.yy
  */
 public class ServiceInfoUpdateService implements Closeable {
-    
+
+    // 默认每隔1s更新一次
     private static final long DEFAULT_DELAY = 1000L;
     
     private static final int DEFAULT_UPDATE_CACHE_TIME_MULTIPLE = 6;
@@ -80,6 +81,7 @@ public class ServiceInfoUpdateService implements Closeable {
     
     /**
      * Schedule update if absent.
+     * 为服务启动一个异步拉取服务数据的定时任务
      *
      * @param serviceName service name
      * @param groupName   group name
@@ -88,13 +90,14 @@ public class ServiceInfoUpdateService implements Closeable {
     public void scheduleUpdateIfAbsent(String serviceName, String groupName, String clusters) {
         String serviceKey = ServiceInfo.getKey(NamingUtils.getGroupedName(serviceName, groupName), clusters);
         if (futureMap.get(serviceKey) != null) {
+            // 更新服务实例的任务还没出结果
             return;
         }
         synchronized (futureMap) {
             if (futureMap.get(serviceKey) != null) {
                 return;
             }
-            
+            // 添加一个异步更新的任务
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, groupName, clusters));
             futureMap.put(serviceKey, future);
         }
@@ -168,23 +171,28 @@ public class ServiceInfoUpdateService implements Closeable {
             try {
                 if (!changeNotifier.isSubscribed(groupName, serviceName, clusters) && !futureMap.containsKey(
                         serviceKey)) {
+                    // 当前服务已经不再被关注，停止刷新任务
                     NAMING_LOGGER.info("update task is stopped, service:{}, clusters:{}", groupedServiceName, clusters);
                     isCancel = true;
                     return;
                 }
                 
                 ServiceInfo serviceObj = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
+                // 第一次关注，立即拉取一次服务信息
                 if (serviceObj == null) {
                     serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
+                    // 存储
                     serviceInfoHolder.processServiceInfo(serviceObj);
                     lastRefTime = serviceObj.getLastRefTime();
                     return;
                 }
                 
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
+                    // 正常情况下，都会走到这个if分支，刷新一次服务
                     serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
                     serviceInfoHolder.processServiceInfo(serviceObj);
                 }
+                // 更新上次刷新时间
                 lastRefTime = serviceObj.getLastRefTime();
                 if (CollectionUtils.isEmpty(serviceObj.getHosts())) {
                     incFailCount();
@@ -198,6 +206,7 @@ public class ServiceInfoUpdateService implements Closeable {
                 NAMING_LOGGER.warn("[NA] failed to update serviceName: {}", groupedServiceName, e);
             } finally {
                 if (!isCancel) {
+                    // 继续下次调度
                     executor.schedule(this, Math.min(delayTime << failCount, DEFAULT_DELAY * 60),
                             TimeUnit.MILLISECONDS);
                 }

@@ -218,9 +218,11 @@ public abstract class GrpcClient extends RpcClient {
                     if (request != null) {
                         
                         try {
+                            // 处理server的通知请求
                             Response response = handleServerRequest(request);
                             if (response != null) {
                                 response.setRequestId(request.getRequestId());
+                                // 给server发送响应，表示请求已处理
                                 sendResponse(response);
                             } else {
                                 LOGGER.warn("[{}]Fail to process server request, ackId->{}", grpcConn.getConnectionId(),
@@ -253,6 +255,7 @@ public abstract class GrpcClient extends RpcClient {
                     LoggerUtils.printIfErrorEnabled(LOGGER, "[{}]Request stream error, switch server,error={}",
                             grpcConn.getConnectionId(), throwable);
                     if (rpcClientStatus.compareAndSet(RpcClientStatus.RUNNING, RpcClientStatus.UNHEALTHY)) {
+                        // 异步切换server
                         switchServerAsync();
                     }
                     
@@ -296,25 +299,30 @@ public abstract class GrpcClient extends RpcClient {
     public Connection connectToServer(ServerInfo serverInfo) {
         try {
             if (grpcExecutor == null) {
+                // 创建一个专门线程池
                 this.grpcExecutor = createGrpcExecutor(serverInfo.getServerIp());
             }
+            // server端口加偏移量=grpc server端口
             int port = serverInfo.getServerPort() + rpcPortOffset();
+            // 创建stub
             ManagedChannel managedChannel = createNewManagedChannel(serverInfo.getServerIp(), port);
             RequestGrpc.RequestFutureStub newChannelStubTemp = createNewChannelStub(managedChannel);
             if (newChannelStubTemp != null) {
-                
+                // 检查server是否正常
                 Response response = serverCheck(serverInfo.getServerIp(), port, newChannelStubTemp);
                 if (response == null || !(response instanceof ServerCheckResponse)) {
+                    // 异常，关闭channel
                     shuntDownChannel(managedChannel);
                     return null;
                 }
-                
+
                 BiRequestStreamGrpc.BiRequestStreamStub biRequestStreamStub = BiRequestStreamGrpc
                         .newStub(newChannelStubTemp.getChannel());
                 GrpcConnection grpcConn = new GrpcConnection(serverInfo, grpcExecutor);
                 grpcConn.setConnectionId(((ServerCheckResponse) response).getConnectionId());
                 
                 //create stream request and bind connection event to this connection.
+                // 注册grpc client的streamObserver
                 StreamObserver<Payload> payloadStreamObserver = bindRequestStream(biRequestStreamStub, grpcConn);
                 
                 // stream observer to send response to server
@@ -322,6 +330,7 @@ public abstract class GrpcClient extends RpcClient {
                 grpcConn.setGrpcFutureServiceStub(newChannelStubTemp);
                 grpcConn.setChannel(managedChannel);
                 //send a  setup request.
+                // 向server发送连接初始化的请求
                 ConnectionSetupRequest conSetupRequest = new ConnectionSetupRequest();
                 conSetupRequest.setClientVersion(VersionUtils.getFullClientVersion());
                 conSetupRequest.setLabels(super.getLabels());

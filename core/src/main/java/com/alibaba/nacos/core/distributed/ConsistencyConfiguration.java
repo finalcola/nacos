@@ -37,6 +37,7 @@ public class ConsistencyConfiguration {
     
     @Bean(value = "strongAgreementProtocol")
     public CPProtocol strongAgreementProtocol(ServerMemberManager memberManager) throws Exception {
+        // spi机制加载CPProtocol，如果没有执行则使用JRaftProtocol
         final CPProtocol protocol = getProtocol(CPProtocol.class, () -> new JRaftProtocol(memberManager));
         return protocol;
     }

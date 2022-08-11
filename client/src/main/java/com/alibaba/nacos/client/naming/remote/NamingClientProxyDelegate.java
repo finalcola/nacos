@@ -50,9 +50,11 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
  * @author xiweng.yy
  */
 public class NamingClientProxyDelegate implements NamingClientProxy {
-    
+
+    // 管理nacos server地址
     private final ServerListManager serverListManager;
-    
+
+    // 负责定时拉取服务信息并通知ServiceInfoHolder
     private final ServiceInfoUpdateService serviceInfoUpdateService;
     
     private final ServiceInfoHolder serviceInfoHolder;
@@ -67,14 +69,18 @@ public class NamingClientProxyDelegate implements NamingClientProxy {
     
     public NamingClientProxyDelegate(String namespace, ServiceInfoHolder serviceInfoHolder, Properties properties,
             InstancesChangeNotifier changeNotifier) throws NacosException {
+        // 负责定时拉取服务信息并通知ServiceInfoHolder
         this.serviceInfoUpdateService = new ServiceInfoUpdateService(properties, serviceInfoHolder, this,
                 changeNotifier);
+        // 管理nacos server地址
         this.serverListManager = new ServerListManager(properties, namespace);
         this.serviceInfoHolder = serviceInfoHolder;
         this.securityProxy = new SecurityProxy(this.serverListManager.getServerList(), NamingHttpClientManager.getInstance().getNacosRestTemplate());
         initSecurityProxy(properties);
+        // http代理服务，封装naming server的http调用
         this.httpClientProxy = new NamingHttpClientProxy(namespace, securityProxy, serverListManager, properties,
                 serviceInfoHolder);
+        // grpcClient，目前持久化节点使用grpc，非持久化使用http
         this.grpcClientProxy = new NamingGrpcClientProxy(namespace, securityProxy, serverListManager, properties,
                 serviceInfoHolder);
     }
@@ -157,8 +163,10 @@ public class NamingClientProxyDelegate implements NamingClientProxy {
         serviceInfoUpdateService.scheduleUpdateIfAbsent(serviceName, groupName, clusters);
         ServiceInfo result = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
         if (null == result || !isSubscribed(serviceName, groupName, clusters)) {
+            // 如果还没订阅该服务或者还没有该服务的信息，订阅一次，拉取最新的服务信息
             result = grpcClientProxy.subscribe(serviceName, groupName, clusters);
         }
+        // 触发服务信息的更新，内部对同时listener
         serviceInfoHolder.processServiceInfo(result);
         return result;
     }

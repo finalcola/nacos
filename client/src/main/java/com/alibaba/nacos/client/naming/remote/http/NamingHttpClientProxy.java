@@ -109,9 +109,11 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
     private final String namespaceId;
     
     private final ServerListManager serverListManager;
-    
+
+    // 负责定时发送心跳（也会调用注册服务接口）
     private final BeatReactor beatReactor;
-    
+
+    // 接收serverpush请求，用于更新服务或者上报client服务列表
     private final PushReceiver pushReceiver;
     
     private final int maxRetry;
@@ -122,9 +124,12 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
             Properties properties, ServiceInfoHolder serviceInfoHolder) {
         super(securityProxy);
         this.serverListManager = serverListManager;
+        // 解析配置中server端口，未配置则使用默认的8848端口
         this.setServerPort(DEFAULT_SERVER_PORT);
         this.namespaceId = namespaceId;
+        // 负责定时发送心跳（也会调用注册服务接口）
         this.beatReactor = new BeatReactor(this, properties);
+        // 接收serverpush请求，用于更新服务或者上报client服务列表
         this.pushReceiver = new PushReceiver(serviceInfoHolder);
         this.maxRetry = ConvertUtils.toInt(properties.getProperty(PropertyKeyConst.NAMING_REQUEST_DOMAIN_RETRY_COUNT,
                 String.valueOf(UtilAndComs.REQUEST_DOMAIN_RETRY_COUNT)));
@@ -147,6 +152,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
                 instance);
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
         if (instance.isEphemeral()) {
+            // 非持久化服务，开启一个心跳任务维持服务的存在
             BeatInfo beatInfo = beatReactor.buildBeatInfo(groupedServiceName, instance);
             beatReactor.addBeatInfo(groupedServiceName, beatInfo);
         }
@@ -162,7 +168,8 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
         params.put(HEALTHY_PARAM, String.valueOf(instance.isHealthy()));
         params.put(EPHEMERAL_PARAM, String.valueOf(instance.isEphemeral()));
         params.put(META_PARAM, JacksonUtils.toJson(instance.getMetadata()));
-        
+
+        // 请求server http接口，创建服务
         reqApi(UtilAndComs.nacosUrlInstance, params, HttpMethod.POST);
         
     }
@@ -178,6 +185,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
                 .info("[DEREGISTER-SERVICE] {} deregistering service {} with instance: {}", namespaceId, serviceName,
                         instance);
         if (instance.isEphemeral()) {
+            // 如果是非持久节点，停止心跳任务
             beatReactor.removeBeatInfo(NamingUtils.getGroupedName(serviceName, groupName), instance.getIp(),
                     instance.getPort());
         }
@@ -188,7 +196,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
         params.put(IP_PARAM, instance.getIp());
         params.put(PORT_PARAM, String.valueOf(instance.getPort()));
         params.put(EPHEMERAL_PARAM, String.valueOf(instance.isEphemeral()));
-        
+
         reqApi(UtilAndComs.nacosUrlInstance, params, HttpMethod.DELETE);
     }
     
@@ -304,6 +312,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
         Map<String, String> params = new HashMap<>(16);
         Map<String, String> bodyMap = new HashMap<>(2);
         if (!lightBeatEnabled) {
+            // 非轻量级请求，会携带beatInfo
             bodyMap.put("beat", JacksonUtils.toJson(beatInfo));
         }
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
@@ -420,6 +429,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
         NacosException exception = new NacosException();
         
         if (serverListManager.isDomain()) {
+            // 静态配置且仅一台server，直接请求+重试
             String nacosDomain = serverListManager.getNacosDomain();
             for (int i = 0; i < maxRetry; i++) {
                 try {
@@ -432,6 +442,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
                 }
             }
         } else {
+            // 随机选择一个server发送请求
             Random random = new Random(System.currentTimeMillis());
             int index = random.nextInt(servers.size());
             
@@ -445,6 +456,7 @@ public class NamingHttpClientProxy extends AbstractNamingClientProxy {
                         NAMING_LOGGER.debug("request {} failed.", server, e);
                     }
                 }
+                // 失败后后循环重试
                 index = (index + 1) % servers.size();
             }
         }

@@ -85,7 +85,9 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
         this.healthCheckCommon = healthCheckCommon;
         this.switchDomain = switchDomain;
         try {
+            // 创建socket
             selector = Selector.open();
+            // 将自己提交到公共的线程池
             GlobalExecutor.submitTcpCheck(this);
         } catch (Exception e) {
             throw new IllegalStateException("Error while initializing SuperSense(TM).");
@@ -107,6 +109,7 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
                     .reEvaluateCheckRT(task.getCheckRtNormalized() * 2, task, switchDomain.getTcpHealthParams());
             return;
         }
+        // 将心跳检测添加到队列执行
         taskQueue.add(new Beat(task, service, metadata, instance));
         MetricsMonitor.getTcpHealthCheckMonitor().incrementAndGet();
     }
@@ -126,7 +129,8 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
             
             tasks.add(new TaskProcessor(beat));
         } while (taskQueue.size() > 0 && tasks.size() < NIO_THREAD_COUNT * 64);
-        
+
+        // 添加到线程池
         for (Future<?> f : GlobalExecutor.invokeAllTcpSuperSenseTask(tasks)) {
             f.get();
         }
@@ -136,18 +140,21 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
     public void run() {
         while (true) {
             try {
+                // 处理心跳task
                 processTask();
-                
+
+                // 调用jdk进行select
                 int readyCount = selector.selectNow();
                 if (readyCount <= 0) {
                     continue;
                 }
-                
+
+                // 处理已经完成的io事件
                 Iterator<SelectionKey> iter = selector.selectedKeys().iterator();
                 while (iter.hasNext()) {
                     SelectionKey key = iter.next();
                     iter.remove();
-                    
+                    // 根据client响应的rt更新实例的健康状态
                     GlobalExecutor.executeTcpSuperSense(new PostProcessor(key));
                 }
             } catch (Throwable e) {
@@ -170,7 +177,9 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
             SocketChannel channel = (SocketChannel) key.channel();
             try {
                 if (!beat.isHealthy()) {
+                    // 如果rt事件较长，标记为非健康
                     //invalid beat means this server is no longer responsible for the current service
+                    // 关闭channel停止检查
                     key.cancel();
                     key.channel().close();
                     
@@ -180,6 +189,7 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
                 
                 if (key.isValid() && key.isConnectable()) {
                     //connected
+                    // 完成检查
                     channel.finishConnect();
                     beat.finishCheck(true, false, System.currentTimeMillis() - beat.getTask().getStartTime(),
                             "tcp:ok+");
@@ -271,11 +281,14 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
         
         public void finishCheck(boolean success, boolean now, long rt, String msg) {
             if (success) {
+                // 将实例更新为健康
                 healthCheckCommon.checkOk(task, service, msg);
             } else {
                 if (now) {
+                    // 立即将实例更新为非健康
                     healthCheckCommon.checkFailNow(task, service, msg);
                 } else {
+                    // 累加失败次数，达到上限后将实例更新为非健康
                     healthCheckCommon.checkFail(task, service, msg);
                 }
                 
@@ -374,15 +387,18 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
                 
                 BeatKey beatKey = keyMap.get(beat.toString());
                 if (beatKey != null && beatKey.key.isValid()) {
+                    // 如果连接创建时长小于tcp keep-alive时间，则不处理
                     if (System.currentTimeMillis() - beatKey.birthTime < TCP_KEEP_ALIVE_MILLIS) {
                         instance.finishCheck();
                         return null;
                     }
-                    
+
+                    // 销毁之间创建的连接
                     beatKey.key.cancel();
                     beatKey.key.channel().close();
                 }
-                
+
+                // 和client之间创建channel
                 channel = SocketChannel.open();
                 channel.configureBlocking(false);
                 // only by setting this can we make the socket close event asynchronous
@@ -393,6 +409,7 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
                 
                 ClusterMetadata cluster = beat.getMetadata();
                 int port = cluster.isUseInstancePortForCheck() ? instance.getPort() : cluster.getHealthyCheckPort();
+                // 连接实例
                 channel.connect(new InetSocketAddress(instance.getIp(), port));
                 
                 SelectionKey key = channel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
@@ -400,7 +417,8 @@ public class TcpHealthCheckProcessor implements HealthCheckProcessorV2, Runnable
                 keyMap.put(beat.toString(), new BeatKey(key));
                 
                 beat.setStartTime(System.currentTimeMillis());
-                
+
+                // 创建一个超时的task，如果连接超时，会更新实例的健康状态
                 GlobalExecutor
                         .scheduleTcpSuperSenseTask(new TimeOutTask(key), CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (Exception e) {

@@ -43,11 +43,13 @@ public class RedoScheduledTask extends AbstractExecuteTask {
     
     @Override
     public void run() {
+        // grpc连接失败
         if (!redoService.isConnected()) {
             LogUtils.NAMING_LOGGER.warn("Grpc Connection is disconnect, skip current redo task");
             return;
         }
         try {
+            // 重新订阅或者注册服务
             redoForInstances();
             redoForSubscribes();
         } catch (Exception e) {

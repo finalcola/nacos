@@ -51,7 +51,8 @@ public class NotifyCenter {
     public static int shareBufferSize;
     
     private static final AtomicBoolean CLOSED = new AtomicBoolean(false);
-    
+
+    // 通过传入的class实例化publisher，并初始化buffer大小
     private static final EventPublisherFactory DEFAULT_PUBLISHER_FACTORY;
     
     private static final NotifyCenter INSTANCE = new NotifyCenter();
@@ -62,6 +63,7 @@ public class NotifyCenter {
     
     /**
      * Publisher management container.
+     * 缓存所有事件的publisher
      */
     private final Map<String, EventPublisher> publisherMap = new ConcurrentHashMap<>(16);
     
@@ -74,7 +76,8 @@ public class NotifyCenter {
         // The size of the public publisher's message staging queue buffer
         String shareBufferSizeProperty = "nacos.core.notify.share-buffer-size";
         shareBufferSize = Integer.getInteger(shareBufferSizeProperty, 1024);
-        
+
+        // spi机制加载EventPublisher，默认使用DefaultPublisher
         final Collection<EventPublisher> publishers = NacosServiceLoader.load(EventPublisher.class);
         Iterator<EventPublisher> iterator = publishers.iterator();
         
@@ -86,6 +89,7 @@ public class NotifyCenter {
         
         DEFAULT_PUBLISHER_FACTORY = (cls, buffer) -> {
             try {
+                // clazz 默认是DefaultPublisher
                 EventPublisher publisher = clazz.newInstance();
                 publisher.init(cls, buffer);
                 return publisher;
@@ -208,8 +212,10 @@ public class NotifyCenter {
         final String topic = ClassUtils.getCanonicalName(subscribeType);
         synchronized (NotifyCenter.class) {
             // MapUtils.computeIfAbsent is a unsafe method.
+            // 保证publisher已经存在
             MapUtil.computeIfAbsent(INSTANCE.publisherMap, topic, factory, subscribeType, ringBufferSize);
         }
+        // 获取对应的publisher，然后添加subscriber
         EventPublisher publisher = INSTANCE.publisherMap.get(topic);
         if (publisher instanceof ShardedEventPublisher) {
             ((ShardedEventPublisher) publisher).addSubscriber(consumer, subscribeType);

@@ -101,6 +101,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     
     /**
      * Cluster node list.
+     * 集群的server地址列表
      */
     private volatile ConcurrentSkipListMap<String, Member> serverList;
     
@@ -159,9 +160,11 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         serverList.put(self.getAddress(), self);
         
         // register NodeChangeEvent publisher to NotifyManager
+        // 注册NodeChangeEvent的publisher以及订阅本地ip变化事件
         registerClusterEvent();
         
         // Initializes the lookup mode
+        // 如果需要的话，使用域名模式
         initAndStartLookup();
         
         if (serverList.isEmpty()) {
@@ -199,12 +202,14 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     
     private void registerClusterEvent() {
         // Register node change events
+        // 注册节点变更的publisher
         NotifyCenter.registerToPublisher(MembersChangeEvent.class,
                 EnvUtil.getProperty(MEMBER_CHANGE_EVENT_QUEUE_SIZE_PROPERTY, Integer.class,
                         DEFAULT_MEMBER_CHANGE_EVENT_QUEUE_SIZE));
         
         // The address information of this node needs to be dynamically modified
         // when registering the IP change of this node
+        // 监听本地ip变更事件（会有一个后台线程检查ip是否变化）
         NotifyCenter.registerSubscriber(new Subscriber<InetUtils.IPChangeEvent>() {
             @Override
             public void onEvent(InetUtils.IPChangeEvent event) {
