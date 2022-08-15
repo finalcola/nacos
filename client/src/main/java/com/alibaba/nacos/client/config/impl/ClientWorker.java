@@ -602,7 +602,7 @@ public class ClientWorker implements Closeable {
             /*
              * Register Config Change /Config ReSync Handler
              * 注册grpc请求的handler，处理config变更的请求
-             * ps.server不会直接下发内容，只是告诉client哪个key有更新
+             * ps.server不会直接下发内容，只是告诉client哪个key有更新以及md5，让client自己拉取
              */
             rpcClientInner.registerServerRequestHandler((request) -> {
                 if (request instanceof ConfigChangeNotifyRequest) {
@@ -629,7 +629,8 @@ public class ClientWorker implements Closeable {
                 }
                 return null;
             });
-            
+
+            // server拉取client的监控
             rpcClientInner.registerServerRequestHandler((request) -> {
                 if (request instanceof ClientConfigMetricRequest) {
                     ClientConfigMetricResponse response = new ClientConfigMetricResponse();
@@ -638,7 +639,8 @@ public class ClientWorker implements Closeable {
                 }
                 return null;
             });
-            
+
+            // 处理连接事件
             rpcClientInner.registerConnectionListener(new ConnectionEventListener() {
                 
                 @Override
@@ -685,7 +687,8 @@ public class ClientWorker implements Closeable {
                     
                 }
             });
-            
+
+            // 在server集群发生变更的时候，刷新grpcClient
             NotifyCenter.registerSubscriber(new Subscriber<ServerlistChangeEvent>() {
                 @Override
                 public void onEvent(ServerlistChangeEvent event) {
@@ -704,10 +707,12 @@ public class ClientWorker implements Closeable {
             executor.schedule(() -> {
                 while (!executor.isShutdown() && !executor.isTerminated()) {
                     try {
+                        // 相当于一个标记，队列有元素则代表需要拉取配置
                         listenExecutebell.poll(5L, TimeUnit.SECONDS);
                         if (executor.isShutdown() || executor.isTerminated()) {
                             continue;
                         }
+                        // 处理配置变更
                         executeConfigListen();
                     } catch (Exception e) {
                         LOGGER.error("[ rpc listen execute ] [rpc listen] exception", e);

@@ -105,7 +105,7 @@ public class NacosConfigService implements ConfigService {
         String content = configResponse.getContent();
         String encryptedDataKey = configResponse.getEncryptedDataKey();
         worker.addTenantListenersWithContent(dataId, group, content, encryptedDataKey, Arrays.asList(listener));
-        
+
         // get a decryptContent, fix https://github.com/alibaba/nacos/issues/7039
         ConfigResponse cr = new ConfigResponse();
         cr.setDataId(dataId);
@@ -167,20 +167,24 @@ public class NacosConfigService implements ConfigService {
         // but is maintained by user.
         // This is designed for certain scenario like client emergency reboot,
         // changing config needed in the same time, while nacos server is down.
+        // 先读取本地的快照内容
         String content = LocalConfigInfoProcessor.getFailover(worker.getAgentName(), dataId, group, tenant);
         if (content != null) {
             LOGGER.warn("[{}] [get-config] get failover ok, dataId={}, group={}, tenant={}, config={}",
                     worker.getAgentName(), dataId, group, tenant, ContentUtils.truncateContent(content));
             cr.setContent(content);
+            // 解密
             String encryptedDataKey = LocalEncryptedDataKeyProcessor
                     .getEncryptDataKeyFailover(agent.getName(), dataId, group, tenant);
             cr.setEncryptedDataKey(encryptedDataKey);
             configFilterChainManager.doFilter(null, cr);
             content = cr.getContent();
+            // 返回本地快照的内容
             return content;
         }
         
         try {
+            // 调用rpc，拉取配置内容
             ConfigResponse response = worker.getServerConfig(dataId, group, tenant, timeoutMs, false);
             cr.setContent(response.getContent());
             cr.setEncryptedDataKey(response.getEncryptedDataKey());
