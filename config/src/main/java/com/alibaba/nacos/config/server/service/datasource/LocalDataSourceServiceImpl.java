@@ -78,6 +78,7 @@ public class LocalDataSourceServiceImpl implements DataSourceService {
             return;
         }
         if (!initialize) {
+            // 使用内嵌的derby数据库
             LogUtil.DEFAULT_LOG.info("use local db service for init");
             final String jdbcUrl =
                     "jdbc:derby:" + Paths.get(EnvUtil.getNacosHome(), derbyBaseDir).toString()
