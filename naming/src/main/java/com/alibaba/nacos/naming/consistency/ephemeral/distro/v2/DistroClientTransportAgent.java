@@ -70,6 +70,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
         }
         DistroDataRequest request = new DistroDataRequest(data, data.getType());
         Member member = memberManager.find(targetServer);
+        // 确保server是存活的
         if (checkTargetServerStatusUnhealthy(member)) {
             Loggers.DISTRO
                     .warn("[DISTRO] Cancel distro sync caused by target server {} unhealthy, key: {}", targetServer,
@@ -77,6 +78,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
             return false;
         }
         try {
+            // 调用grpc，同步client
             Response response = clusterRpcClientProxy.sendRequest(member, request);
             return checkResponse(response);
         } catch (NacosException e) {

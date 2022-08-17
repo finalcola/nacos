@@ -31,6 +31,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Distro data request handler.
+ * 处理其他server发过来的distro同步数据
  *
  * @author xiweng.yy
  */

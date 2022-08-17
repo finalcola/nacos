@@ -126,6 +126,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     public void addTask(Object key, AbstractDelayTask newTask) {
         lock.lock();
         try {
+            // 将key相同的task合并
             AbstractDelayTask existTask = tasks.get(key);
             if (null != existTask) {
                 newTask.merge(existTask);

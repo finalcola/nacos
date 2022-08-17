@@ -69,7 +69,7 @@ public abstract class AbstractClient implements Client {
                 MetricsMonitor.incrementInstanceCount();
             }
         }
-        // 发布client变更事件
+        // 发布client变更事件（DistroProtocol会同步给集群内的其他节点）
         NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
         Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
         return true;

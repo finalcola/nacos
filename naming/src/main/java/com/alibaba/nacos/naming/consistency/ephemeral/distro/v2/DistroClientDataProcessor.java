@@ -245,10 +245,12 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     
     @Override
     public DistroData getDistroData(DistroKey distroKey) {
+        // 获取对应client的信息
         Client client = clientManager.getClient(distroKey.getResourceKey());
         if (null == client) {
             return null;
         }
+        // 序列化
         byte[] data = ApplicationUtils.getBean(Serializer.class).serialize(client.generateSyncData());
         return new DistroData(distroKey, data);
     }

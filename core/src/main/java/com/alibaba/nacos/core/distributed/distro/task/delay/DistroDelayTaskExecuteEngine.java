@@ -23,28 +23,30 @@ import com.alibaba.nacos.core.utils.Loggers;
 
 /**
  * Distro delay task execute engine.
+ * DistroDelayTask执行引擎，在获取和注册processor的时候，对key进行处理
  *
  * @author xiweng.yy
  */
 public class DistroDelayTaskExecuteEngine extends NacosDelayTaskExecuteEngine {
-    
+
     public DistroDelayTaskExecuteEngine() {
         super(DistroDelayTaskExecuteEngine.class.getName(), Loggers.DISTRO);
     }
-    
+
     @Override
     public void addProcessor(Object key, NacosTaskProcessor taskProcessor) {
         Object actualKey = getActualKey(key);
         super.addProcessor(actualKey, taskProcessor);
     }
-    
+
     @Override
     public NacosTaskProcessor getProcessor(Object key) {
         Object actualKey = getActualKey(key);
         return super.getProcessor(actualKey);
     }
-    
+
     private Object getActualKey(Object key) {
+        // 如果是Distro同步实例，resourceType是com.alibaba.nacos.naming.consistency.ephemeral.distro.v2.DistroClientDataProcessor.TYPE
         return key instanceof DistroKey ? ((DistroKey) key).getResourceType() : key;
     }
 }

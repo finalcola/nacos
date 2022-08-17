@@ -25,7 +25,7 @@ import java.util.Objects;
  */
 public class DistroKey {
     
-    private String resourceKey;
+    private String resourceKey; // 相当于资源ID
     
     private String resourceType;
     

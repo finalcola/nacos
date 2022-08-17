@@ -44,11 +44,13 @@ public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
     @Override
     protected boolean doExecute() {
         String type = getDistroKey().getResourceType();
+        // 获取distroLey对应client的信息
         DistroData distroData = getDistroData(type);
         if (null == distroData) {
             Loggers.DISTRO.warn("[DISTRO] {} with null data to sync, skip", toString());
             return true;
         }
+        // 同步给其他server
         return getDistroComponentHolder().findTransportAgent(type)
                 .syncData(distroData, getDistroKey().getTargetServer());
     }
@@ -71,6 +73,7 @@ public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
     }
     
     private DistroData getDistroData(String type) {
+        // 获取client的信息
         DistroData result = getDistroComponentHolder().findDataStorage(type).getDistroData(getDistroKey());
         if (null != result) {
             result.setType(OPERATION);

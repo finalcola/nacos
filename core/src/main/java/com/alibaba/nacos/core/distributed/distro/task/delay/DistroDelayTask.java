@@ -62,6 +62,7 @@ public class DistroDelayTask extends AbstractDelayTask {
         if (!(task instanceof DistroDelayTask)) {
             return;
         }
+        // distroKey相同的两个task，合并后以创建时间最大的task为准
         DistroDelayTask oldTask = (DistroDelayTask) task;
         if (!action.equals(oldTask.getAction()) && createTime < oldTask.getCreateTime()) {
             action = oldTask.getAction();
