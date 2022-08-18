@@ -63,7 +63,7 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
     private volatile boolean connected = false;
     
     public NamingGrpcRedoService(NamingGrpcClientProxy clientProxy) {
-        // 定时执行重新订阅的task
+        // 定时执行重新订阅的task（在切换连接的server，通过该定时任务，重新订阅或者注册实例）
         this.redoExecutor = new ScheduledThreadPoolExecutor(REDO_THREAD, new NameThreadFactory(REDO_THREAD_NAME));
         this.redoExecutor.scheduleWithFixedDelay(new RedoScheduledTask(clientProxy, this), DEFAULT_REDO_DELAY,
                 DEFAULT_REDO_DELAY, TimeUnit.MILLISECONDS);
@@ -81,6 +81,7 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
     
     @Override
     public void onDisConnect() {
+        // server连接断开后，更新服务的订阅状态
         connected = false;
         LogUtils.NAMING_LOGGER.warn("Grpc connection disconnect, mark to redo");
         synchronized (registeredInstances) {

@@ -62,8 +62,10 @@ public class DistroLoadDataTask implements Runnable {
         try {
             load();
             if (!checkCompleted()) {
+                // 如果还有没有同步完成，则再次调度
                 GlobalExecutor.submitLoadDataTask(this, distroConfig.getLoadDataRetryDelayMillis());
             } else {
+                // 通过回调更新DistroProto的isInitialized为true
                 loadCallback.onSuccess();
                 Loggers.DISTRO.info("[DISTRO-INIT] load snapshot data success");
             }
@@ -85,6 +87,7 @@ public class DistroLoadDataTask implements Runnable {
             TimeUnit.SECONDS.sleep(1);
         }
         for (String each : distroComponentHolder.getDataStorageTypes()) {
+            // 跳过已经加载过
             if (!loadCompletedMap.containsKey(each) || !loadCompletedMap.get(each)) {
                 loadCompletedMap.put(each, loadAllDataSnapshotFromRemote(each));
             }
@@ -130,10 +133,12 @@ public class DistroLoadDataTask implements Runnable {
 
     private boolean checkCompleted() {
         if (distroComponentHolder.getDataStorageTypes().size() != loadCompletedMap.size()) {
+            // 还有数据源没有同步
             return false;
         }
         for (Boolean each : loadCompletedMap.values()) {
             if (!each) {
+                // 还有节点没有同步
                 return false;
             }
         }

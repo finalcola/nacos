@@ -56,8 +56,10 @@ public class PushExecuteTask extends AbstractExecuteTask {
     @Override
     public void run() {
         try {
+            // 服务信息
             PushDataWrapper wrapper = generatePushData();
             ClientManager clientManager = delayTaskEngine.getClientManager();
+            // 订阅了服务的clientId
             for (String each : getTargetClientIds()) {
                 Client client = clientManager.getClient(each);
                 if (null == client) {
@@ -76,7 +78,9 @@ public class PushExecuteTask extends AbstractExecuteTask {
     }
     
     private PushDataWrapper generatePushData() {
+        // 服务信息（namespace、分组、实例等）
         ServiceInfo serviceInfo = delayTaskEngine.getServiceStorage().getPushData(service);
+        // 服务元信息
         ServiceMetadata serviceMetadata = delayTaskEngine.getMetadataManager().getServiceMetadata(service).orElse(null);
         return new PushDataWrapper(serviceMetadata, serviceInfo);
     }

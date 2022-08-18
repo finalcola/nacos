@@ -48,7 +48,8 @@ public class DistroProtocol {
     private final DistroComponentHolder distroComponentHolder;
     
     private final DistroTaskEngineHolder distroTaskEngineHolder;
-    
+
+    // 是否初始化完成，如果从其他server同步数据成功，则视为初始化完成
     private volatile boolean isInitialized = false;
     
     public DistroProtocol(ServerMemberManager memberManager, DistroComponentHolder distroComponentHolder,
@@ -56,7 +57,10 @@ public class DistroProtocol {
         this.memberManager = memberManager;
         this.distroComponentHolder = distroComponentHolder;
         this.distroTaskEngineHolder = distroTaskEngineHolder;
-        // 启动定时任务，比对和同步其他server的数据
+        /*
+        1、同步其他server，client的心跳时间
+        2、从其他server加载数据
+         */
         startDistroTask();
     }
     
@@ -67,7 +71,7 @@ public class DistroProtocol {
         }
         // 定时给其他server发送verify请求,更新client的心跳时间(老的http client会发送md5，让其他server同步最新的数据)
         startVerifyTask();
-        // 定时更新
+        // 从其他server加载数据,仅执行一次
         startLoadTask();
     }
     

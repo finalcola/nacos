@@ -48,6 +48,7 @@ public class ServerStatusManager {
     
     @PostConstruct
     public void init() {
+        // 定时更新server状态
         GlobalExecutor.registerServerStatusUpdater(new ServerStatusUpdater());
     }
     
@@ -57,7 +58,10 @@ public class ServerStatusManager {
             serverStatus = ServerStatus.valueOf(switchDomain.getOverriddenServerStatus());
             return;
         }
-        
+
+        // 检查同步协议是否初始化成功（临时数据和持久化数据协议都初始化成功）
+        // 临时数据协议：distro协议，从其他server同步数据成功
+        // 持久化数据：raft协议，leader选举成功
         if (consistencyService.isAvailable()) {
             serverStatus = ServerStatus.UP;
         } else {

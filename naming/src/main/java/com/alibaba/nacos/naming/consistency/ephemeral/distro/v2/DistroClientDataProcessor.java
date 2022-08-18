@@ -159,8 +159,10 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     
     private void handlerClientSyncData(ClientSyncData clientSyncData) {
         Loggers.DISTRO.info("[Client-Add] Received distro client sync data {}", clientSyncData.getClientId());
+        // 新建client
         clientManager.syncClientConnected(clientSyncData.getClientId(), clientSyncData.getAttributes());
         Client client = clientManager.getClient(clientSyncData.getClientId());
+        // 将数据写入到新建的client中
         upgradeClient(client, clientSyncData);
     }
     

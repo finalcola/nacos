@@ -389,11 +389,13 @@ public abstract class RpcClient implements Closeable {
         while (startUpRetryTimes > 0 && connectToServer == null) {
             try {
                 startUpRetryTimes--;
+                // 选择一个server
                 ServerInfo serverInfo = nextRpcServer();
                 
                 LoggerUtils.printIfInfoEnabled(LOGGER, "[{}] Try to connect to server on start up, server: {}", name,
                         serverInfo);
-                
+
+                // 创建grpc连接
                 connectToServer = connectToServer(serverInfo);
             } catch (Throwable e) {
                 LoggerUtils.printIfWarnEnabled(LOGGER,
@@ -414,7 +416,7 @@ public abstract class RpcClient implements Closeable {
             switchServerAsync();
         }
 
-        // 注册server请求处理器，重置server连接
+        // 注册server请求处理器，ConnectResetRequest 重置server连接
         registerServerRequestHandler(new ConnectResetRequestHandler());
         
         // register client detection request.
