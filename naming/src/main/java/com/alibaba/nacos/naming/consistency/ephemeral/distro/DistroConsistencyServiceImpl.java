@@ -191,12 +191,14 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             List<String> toRemoveKeys = new ArrayList<>();
             for (Map.Entry<String, String> entry : checksumMap.entrySet()) {
                 if (distroMapper.responsible(KeyBuilder.getServiceName(entry.getKey()))) {
+                    // 自己负责的key，忽略
                     // this key should not be sent from remote server:
                     Loggers.DISTRO.error("receive responsible key timestamp of " + entry.getKey() + " from " + server);
                     // abort the procedure:
                     return;
                 }
-                
+
+                // 校验md5，如果发送变更，则需要从server拉取
                 if (!dataStore.contains(entry.getKey()) || dataStore.get(entry.getKey()).value == null || !dataStore
                         .get(entry.getKey()).value.getChecksum().equals(entry.getValue())) {
                     toUpdateKeys.add(entry.getKey());
@@ -208,7 +210,8 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 if (!server.equals(distroMapper.mapSrv(KeyBuilder.getServiceName(key)))) {
                     continue;
                 }
-                
+
+                // 需要删除的key
                 if (!checksumMap.containsKey(key)) {
                     toRemoveKeys.add(key);
                 }
@@ -216,7 +219,8 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             
             Loggers.DISTRO
                     .info("to remove keys: {}, to update keys: {}, source: {}", toRemoveKeys, toUpdateKeys, server);
-            
+
+            // 清理过期的key
             for (String key : toRemoveKeys) {
                 onRemove(key);
             }
@@ -224,7 +228,8 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
             if (toUpdateKeys.isEmpty()) {
                 return;
             }
-            
+
+            // 同步发送变更的key
             try {
                 DistroHttpCombinedKey distroKey = new DistroHttpCombinedKey(KeyBuilder.INSTANCE_LIST_KEY_PREFIX,
                         server);

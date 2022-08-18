@@ -227,6 +227,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         DistroClientVerifyInfo verifyData = ApplicationUtils.getBean(Serializer.class)
                 .deserialize(distroData.getContent(), DistroClientVerifyInfo.class);
         if (clientManager.verifyClient(verifyData.getClientId())) {
+            // client依然存活
             return true;
         }
         Loggers.DISTRO.info("client {} is invalid, get new client from {}", verifyData.getClientId(), sourceAddress);
@@ -257,6 +258,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     
     @Override
     public DistroData getDatumSnapshot() {
+        // 生成当前节点内所有client实例信息的快照文件
         List<ClientSyncData> datum = new LinkedList<>();
         for (String each : clientManager.allClientId()) {
             Client client = clientManager.getClient(each);

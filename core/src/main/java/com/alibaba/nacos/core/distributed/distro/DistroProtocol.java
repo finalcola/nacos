@@ -65,7 +65,7 @@ public class DistroProtocol {
             isInitialized = true;
             return;
         }
-        // 定时校验
+        // 定时给其他server发送verify请求,更新client的心跳时间(老的http client会发送md5，让其他server同步最新的数据)
         startVerifyTask();
         // 定时更新
         startLoadTask();
@@ -195,6 +195,7 @@ public class DistroProtocol {
             Loggers.DISTRO.warn("[DISTRO] Can't find verify data process for received data {}", resourceType);
             return false;
         }
+        // 处理校验逻辑
         return dataProcessor.processVerifyData(distroData, sourceAddress);
     }
     

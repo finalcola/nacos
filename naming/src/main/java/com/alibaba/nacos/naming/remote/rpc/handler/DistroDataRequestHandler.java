@@ -51,6 +51,7 @@ public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, 
                 case VERIFY:
                     return handleVerify(request.getDistroData(), meta);
                 case SNAPSHOT:
+                    // 处理快照请求，将当前节点所有client信息返回给请求方
                     return handleSnapshot();
                 case ADD:
                 case CHANGE:
@@ -69,9 +70,11 @@ public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, 
             return result;
         }
     }
-    
+
     private DistroDataResponse handleVerify(DistroData distroData, RequestMeta meta) {
+        // 处理其他节点发送过来的校验请求
         DistroDataResponse result = new DistroDataResponse();
+        // 检查client是否存活
         if (!distroProtocol.onVerify(distroData, meta.getClientIp())) {
             result.setErrorInfo(ResponseCode.FAIL.getCode(), "[DISTRO-FAILED] distro data verify failed");
         }
@@ -80,6 +83,7 @@ public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, 
     
     private DistroDataResponse handleSnapshot() {
         DistroDataResponse result = new DistroDataResponse();
+        // 生成client的快照数据
         DistroData distroData = distroProtocol.onSnapshot(DistroClientDataProcessor.TYPE);
         result.setDistroData(distroData);
         return result;

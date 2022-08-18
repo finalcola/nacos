@@ -69,10 +69,12 @@ public class DistroVerifyTimedTask implements Runnable {
                     dataStorage.getClass().getSimpleName());
             return;
         }
+        // 存储的数据（例如client的实例数据）
         List<DistroData> verifyData = dataStorage.getVerifyData();
         if (null == verifyData || verifyData.isEmpty()) {
             return;
         }
+        // 给其他server发送校验请求,更新实例的心跳时间
         for (Member member : targetServer) {
             DistroTransportAgent agent = distroComponentHolder.findTransportAgent(type);
             if (null == agent) {

@@ -54,8 +54,10 @@ public class DistroVerifyExecuteTask extends AbstractExecuteTask {
         for (DistroData each : verifyData) {
             try {
                 if (transportAgent.supportCallbackTransport()) {
+                    // grpc走这个分支，如果出现异常会将数据标记为校验失败
                     doSyncVerifyDataWithCallback(each);
                 } else {
+                    // http，仅发送请求
                     doSyncVerifyData(each);
                 }
             } catch (Exception e) {
@@ -84,6 +86,7 @@ public class DistroVerifyExecuteTask extends AbstractExecuteTask {
         
         @Override
         public void onFailed(Throwable throwable) {
+            // 标记校验失败
             DistroRecord distroRecord = DistroRecordsHolder.getInstance().getRecord(resourceType);
             distroRecord.verifyFail();
             if (Loggers.DISTRO.isDebugEnabled()) {

@@ -124,6 +124,7 @@ public class EphemeralIpPortClientManager implements ClientManager {
     public boolean verifyClient(String clientId) {
         IpPortBasedClient client = clients.get(clientId);
         if (null != client) {
+            // 更新实例的心跳时间
             NamingExecuteTaskDispatcher.getInstance()
                     .dispatchAndExecuteTask(clientId, new ClientBeatUpdateTask(client));
             return true;

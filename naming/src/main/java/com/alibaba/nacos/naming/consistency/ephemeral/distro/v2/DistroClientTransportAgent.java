@@ -139,6 +139,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
             callback.onSuccess();
             return;
         }
+        // 发送校验数据的grpc请求
         DistroDataRequest request = new DistroDataRequest(verifyData, DataOperation.VERIFY);
         Member member = memberManager.find(targetServer);
         if (checkTargetServerStatusUnhealthy(member)) {

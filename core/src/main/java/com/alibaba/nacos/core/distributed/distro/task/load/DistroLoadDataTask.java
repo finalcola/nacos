@@ -75,10 +75,12 @@ public class DistroLoadDataTask implements Runnable {
     
     private void load() throws Exception {
         while (memberManager.allMembersWithoutSelf().isEmpty()) {
+            // 集群只有自己
             Loggers.DISTRO.info("[DISTRO-INIT] waiting server list init...");
             TimeUnit.SECONDS.sleep(1);
         }
         while (distroComponentHolder.getDataStorageTypes().isEmpty()) {
+            // 数据存储失控
             Loggers.DISTRO.info("[DISTRO-INIT] waiting distro data storage register...");
             TimeUnit.SECONDS.sleep(1);
         }
@@ -101,10 +103,12 @@ public class DistroLoadDataTask implements Runnable {
             long startTime = System.currentTimeMillis();
             try {
                 Loggers.DISTRO.info("[DISTRO-INIT] load snapshot {} from {}", resourceType, each.getAddress());
+                // 拉取其他server的全量client数据
                 DistroData distroData = transportAgent.getDatumSnapshot(each.getAddress());
                 Loggers.DISTRO.info("[DISTRO-INIT] it took {} ms to load snapshot {} from {} and snapshot size is {}.",
                         System.currentTimeMillis() - startTime, resourceType, each.getAddress(),
                         getDistroDataLength(distroData));
+                // 处理同步过来的数据
                 boolean result = dataProcessor.processSnapshot(distroData);
                 Loggers.DISTRO
                         .info("[DISTRO-INIT] load snapshot {} from {} result: {}", resourceType, each.getAddress(),
@@ -123,7 +127,7 @@ public class DistroLoadDataTask implements Runnable {
     private static int getDistroDataLength(DistroData distroData) {
         return distroData != null && distroData.getContent() != null ? distroData.getContent().length : 0;
     }
-    
+
     private boolean checkCompleted() {
         if (distroComponentHolder.getDataStorageTypes().size() != loadCompletedMap.size()) {
             return false;
