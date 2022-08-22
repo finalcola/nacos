@@ -276,6 +276,7 @@
                         <exclude>**/common/packagescan/classreading/*.java</exclude>
                         <exclude>**/common/packagescan/resource/*.java</exclude>
                         <exclude>**/common/packagescan/util/*.java</exclude>
+                        <exclude>**/*.java</exclude>
                     </excludes>
                 </configuration>
                 <executions>

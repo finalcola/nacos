@@ -389,7 +389,7 @@ public abstract class RpcClient implements Closeable {
         while (startUpRetryTimes > 0 && connectToServer == null) {
             try {
                 startUpRetryTimes--;
-                // 选择一个server
+                // 选择一个server(轮训调度)
                 ServerInfo serverInfo = nextRpcServer();
                 
                 LoggerUtils.printIfInfoEnabled(LOGGER, "[{}] Try to connect to server on start up, server: {}", name,

@@ -67,7 +67,7 @@ public class ServerListManager implements ServerListFactory, Closeable {
     
     private final String namespace;
 
-    // 当配置了多个server，会采用轮训的方式访问
+    // 当配置了多个server，会采用轮训的方式访问,起始的轮训位置随机
     private final AtomicInteger currentIndex = new AtomicInteger();
     
     private final List<String> serverList = new ArrayList<>();
