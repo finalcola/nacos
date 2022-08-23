@@ -32,11 +32,17 @@ public class TpsMonitorPointTest {
         long current = System.currentTimeMillis();
         String date = TpsMonitorPoint.getTimeFormatOfSecond(current);
         Assert.assertNotNull(date);
-        
-        TpsMonitorPoint.getTrimMillsOfSecond(current);
-    
-        TpsMonitorPoint.getTrimMillsOfMinute(current);
-    
-        TpsMonitorPoint.getTrimMillsOfHour(current);
+
+        long trimMillsOfSecond = TpsMonitorPoint.getTrimMillsOfSecond(current);
+        Assert.assertEquals(current / 1000, trimMillsOfSecond / 1000);
+        Assert.assertEquals(0, trimMillsOfSecond % 1000);
+
+        long trimMillsOfMinute = TpsMonitorPoint.getTrimMillsOfMinute(current);
+        Assert.assertEquals(trimMillsOfSecond / 1000 / 60, trimMillsOfMinute / 1000 / 60);
+        Assert.assertEquals(0, trimMillsOfMinute % (1000 * 60));
+
+        long trimMillsOfHour = TpsMonitorPoint.getTrimMillsOfHour(current);
+        Assert.assertEquals(current / 1000 / 60 / 60, trimMillsOfHour / 1000 / 60 / 60);
+        Assert.assertEquals(0, trimMillsOfHour % (1000 * 60 * 60));
     }
 }

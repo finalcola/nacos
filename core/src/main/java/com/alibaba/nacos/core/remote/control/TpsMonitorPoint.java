@@ -16,8 +16,6 @@
 
 package com.alibaba.nacos.core.remote.control;
 
-import com.alibaba.nacos.core.utils.Loggers;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import com.alibaba.nacos.core.utils.Loggers;
 
 /**
  * tps control point.
@@ -39,7 +39,10 @@ public class TpsMonitorPoint {
     public static final int DEFAULT_RECORD_SIZE = 10;
     
     private static final String DATETIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
-    
+    private static final long HOUR_TO_MILLS = TimeUnit.HOURS.toMillis(1);
+    private static final long MINUTE_TO_MILLS = TimeUnit.MINUTES.toMillis(1);
+    private static final long SECOND_TO_MILLS = TimeUnit.SECONDS.toMillis(1);
+
     private long startTime;
     
     private String pointName;
@@ -69,10 +72,7 @@ public class TpsMonitorPoint {
      * @return mills of second.
      */
     public static long getTrimMillsOfSecond(long timeStamp) {
-        String millString = String.valueOf(timeStamp);
-        String substring = millString.substring(0, millString.length() - 3);
-        return Long.parseLong(substring + "000");
-        
+        return timeStamp / SECOND_TO_MILLS * SECOND_TO_MILLS;
     }
     
     /**
@@ -82,9 +82,7 @@ public class TpsMonitorPoint {
      * @return minis of minute.
      */
     public static long getTrimMillsOfMinute(long timeStamp) {
-        String millString = String.valueOf(timeStamp);
-        String substring = millString.substring(0, millString.length() - 3);
-        return Long.parseLong(Long.parseLong(substring) / 60 * 60 + "000");
+        return timeStamp / MINUTE_TO_MILLS * MINUTE_TO_MILLS;
     }
     
     /**
@@ -94,9 +92,7 @@ public class TpsMonitorPoint {
      * @return mills of hour.
      */
     public static long getTrimMillsOfHour(long timeStamp) {
-        String millString = String.valueOf(timeStamp);
-        String substring = millString.substring(0, millString.length() - 3);
-        return Long.parseLong(Long.parseLong(substring) / (60 * 60) * (60 * 60) + "000");
+        return timeStamp / HOUR_TO_MILLS * HOUR_TO_MILLS;
     }
     
     /**
