@@ -82,7 +82,7 @@ public class DistroLoadDataTask implements Runnable {
             TimeUnit.SECONDS.sleep(1);
         }
         while (distroComponentHolder.getDataStorageTypes().isEmpty()) {
-            // 数据存储失控
+            // 数据存储为空
             Loggers.DISTRO.info("[DISTRO-INIT] waiting distro data storage register...");
             TimeUnit.SECONDS.sleep(1);
         }
