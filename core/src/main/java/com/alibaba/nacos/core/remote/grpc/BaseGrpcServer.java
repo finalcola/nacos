@@ -145,6 +145,7 @@ public abstract class BaseGrpcServer extends BaseRpcServer {
                         if (StringUtils.isNotBlank(connectionId)) {
                             Loggers.REMOTE_DIGEST
                                     .info("Connection transportTerminated,connectionId = {} ", connectionId);
+                            // 连接已关闭，注销
                             connectionManager.unregister(connectionId);
                         }
                     }
@@ -172,7 +173,8 @@ public abstract class BaseGrpcServer extends BaseRpcServer {
                 .setFullMethodName(MethodDescriptor.generateFullMethodName(REQUEST_SERVICE_NAME, REQUEST_METHOD_NAME))
                 .setRequestMarshaller(ProtoUtils.marshaller(Payload.getDefaultInstance()))
                 .setResponseMarshaller(ProtoUtils.marshaller(Payload.getDefaultInstance())).build();
-        
+
+        // 单向流的handler，会交给requestHandlerRegistry，拿到对应的Handler处理
         final ServerCallHandler<Payload, Payload> payloadHandler = ServerCalls
                 .asyncUnaryCall((request, responseObserver) -> grpcCommonRequestAcceptor.request(request, responseObserver));
         
@@ -181,6 +183,7 @@ public abstract class BaseGrpcServer extends BaseRpcServer {
         handlerRegistry.addService(ServerInterceptors.intercept(serviceDefOfUnaryPayload, serverInterceptor));
         
         // bi stream register.
+        // 注册双向流的handler, 用于初始化连接+连接心跳
         final ServerCallHandler<Payload, Payload> biStreamHandler = ServerCalls.asyncBidiStreamingCall(
                 (responseObserver) -> grpcBiStreamRequestAcceptor.requestBiStream(responseObserver));
         

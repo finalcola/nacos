@@ -49,6 +49,7 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
     private final ConcurrentMap<String, ConnectionBasedClient> clients = new ConcurrentHashMap<>();
     
     public ConnectionBasedClientManager() {
+        // 启动过期task，如果连接的时长超过3分钟，则移除client(只移除同其他server同步过来的client)
         GlobalExecutor
                 .scheduleExpiredClientCleaner(new ExpiredClientCleaner(this), 0, Constants.DEFAULT_HEART_BEAT_INTERVAL,
                         TimeUnit.MILLISECONDS);
@@ -129,6 +130,7 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
     public boolean verifyClient(String clientId) {
         ConnectionBasedClient client = clients.get(clientId);
         if (null != client) {
+            // 更新上次同步时间，避免被移除
             client.setLastRenewTime();
             return true;
         }
@@ -149,6 +151,7 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
             for (String each : clientManager.allClientId()) {
                 ConnectionBasedClient client = (ConnectionBasedClient) clientManager.getClient(each);
                 if (null != client && client.isExpire(currentTime)) {
+                    // 过期，则进行移除，只针对从其他server同步过来的client
                     clientManager.clientDisconnected(each);
                 }
             }

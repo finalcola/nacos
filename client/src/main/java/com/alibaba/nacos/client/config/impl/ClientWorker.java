@@ -169,6 +169,7 @@ public class ClientWorker implements Closeable {
             for (Listener listener : listeners) {
                 cache.addListener(listener);
             }
+            // 标记需要从server拉取一次配置
             cache.setSyncWithServer(false);
             agent.notifyListenConfig();
         }
@@ -746,6 +747,7 @@ public class ClientWorker implements Closeable {
                     //check local listeners consistent.
                     // isSyncWithServer-是否需要从server拉取
                     if (cache.isSyncWithServer()) {
+                        // 比较listener中的md5，如果不一致则回调listener
                         cache.checkListenerMd5();
                         if (!needAllSync) {
                             continue;
@@ -816,7 +818,7 @@ public class ClientWorker implements Closeable {
                                                     changeConfig.getTenant());
                                     changeKeys.add(changeKey);
                                     boolean isInitializing = cacheMap.get().get(changeKey).isInitializing();
-                                    // 从server拉取内容，并更新cache
+                                    // 从server拉取内容，并更新cache、通知listener
                                     refreshContentAndCheck(changeKey, !isInitializing);
                                 }
                                 
@@ -892,6 +894,7 @@ public class ClientWorker implements Closeable {
                 lastAllSyncTime = now;
             }
             //If has changed keys,notify re sync md5.
+            // 如果有发生变更的key，需要重新同步
             if (hasChangedKeys) {
                 notifyListenConfig();
             }

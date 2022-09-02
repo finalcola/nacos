@@ -85,11 +85,13 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
     
     /**
      * current loader adjust count,only effective once,use to re balance.
+     * 当前server处理的client总数限制，用于rebalance，只生效一次
      */
     private int loadClient = -1;
     
     String redirectAddress = null;
-    
+
+    // 记录ip的连接数
     private Map<String, AtomicInteger> connectionForClientIp = new ConcurrentHashMap<>(16);
     
     Map<String, Connection> connections = new ConcurrentHashMap<>();
@@ -227,8 +229,10 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                     connectionForClientIp.remove(clientIp);
                 }
             }
+            // 关闭连接
             remove.close();
             Loggers.REMOTE_DIGEST.info("[{}]Connection unregistered successfully. ", connectionId);
+            // 通知listener
             clientConnectionEventListenerRegistry.notifyClientDisConnected(remove);
         }
     }
@@ -287,7 +291,12 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
      */
     @PostConstruct
     public void start() {
-        
+
+        /*
+        定时task，两个功能：
+        1、reBalance，超过限制时会逐出client，让client连接到其他server
+        2、探活心跳过期的连接
+         */
         // Start UnHealthy Connection Expel Task.
         RpcScheduledExecutor.COMMON_SERVER_EXECUTOR.scheduleWithFixedDelay(() -> {
             try {
@@ -296,6 +305,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                 Loggers.REMOTE_DIGEST.info("Connection check task start");
                 MetricsMonitor.getLongConnectionMonitor().set(totalCount);
                 Set<Map.Entry<String, Connection>> entries = connections.entrySet();
+                // 当前sdkClient的连接数量
                 int currentSdkClientCount = currentSdkClientCount();
                 boolean isLoaderClient = loadClient >= 0;
                 int currentMaxClient = isLoaderClient ? loadClient : connectionLimitRule.countLimit;
@@ -311,6 +321,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                 Map<String, AtomicInteger> expelForIp = new HashMap<>(16);
 
                 //1. calculate expel count  of ip.
+                // 1、计算出每个ip需要逐出的数量
                 for (Map.Entry<String, Connection> entry : entries) {
 
                     Connection client = entry.getValue();
@@ -318,6 +329,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                     String clientIp = client.getMetaInfo().getClientIp();
                     if (client.getMetaInfo().isSdkSource() && !expelForIp.containsKey(clientIp)) {
                         //get limit for current ip.
+                        // ip的连接数限制
                         int countLimitOfIp = connectionLimitRule.getCountLimitOfIp(clientIp);
                         if (countLimitOfIp < 0) {
                             int countLimitOfApp = connectionLimitRule.getCountLimitOfApp(appName);
@@ -328,6 +340,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                         }
 
                         if (countLimitOfIp >= 0 && connectionForClientIp.containsKey(clientIp)) {
+                            // 如果超过了限制，则会进行逐出
                             AtomicInteger currentCountIp = connectionForClientIp.get(clientIp);
                             if (currentCountIp != null && currentCountIp.get() > countLimitOfIp) {
                                 expelForIp.put(clientIp, new AtomicInteger(currentCountIp.get() - countLimitOfIp));
@@ -346,28 +359,34 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                 Set<String> outDatedConnections = new HashSet<>();
                 long now = System.currentTimeMillis();
                 //2.get expel connection for ip limit.
+                // 2、获取每个ip需要逐出的连接
                 for (Map.Entry<String, Connection> entry : entries) {
                     Connection client = entry.getValue();
                     String clientIp = client.getMetaInfo().getClientIp();
                     AtomicInteger integer = expelForIp.get(clientIp);
                     if (integer != null && integer.intValue() > 0) {
+                        // 逐出超过限制的连接
                         integer.decrementAndGet();
                         expelClient.add(client.getMetaInfo().getConnectionId());
                         expelCount--;
                     } else if (now - client.getMetaInfo().getLastActiveTime() >= KEEP_ALIVE_TIME) {
+                        // 逐出心跳超过时间的连接
                         outDatedConnections.add(client.getMetaInfo().getConnectionId());
                     }
 
                 }
 
                 //3. if total count is still over limit.
+                // 3、如果逐出总数还是超过限制，则继续逐出
                 if (expelCount > 0) {
                     for (Map.Entry<String, Connection> entry : entries) {
                         Connection client = entry.getValue();
+                        // 逐出那些还没有逐出过的client连接
                         if (!expelForIp.containsKey(client.getMetaInfo().clientIp) && client.getMetaInfo()
                                 .isSdkSource() && expelCount > 0) {
                             expelClient.add(client.getMetaInfo().getConnectionId());
                             expelCount--;
+                            // 避免二次逐出
                             outDatedConnections.remove(client.getMetaInfo().getConnectionId());
                         }
                     }
@@ -381,11 +400,14 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                     serverPort = split[1];
                 }
 
+                // 需要逐出的连接，通知client重连其他server
                 for (String expelledClientId : expelClient) {
                     try {
                         Connection connection = getConnection(expelledClientId);
                         if (connection != null) {
+                            // 逐出操作，通知client连接其他server，用于reBalance
                             ConnectResetRequest connectResetRequest = new ConnectResetRequest();
+                            // 指定client连接的server
                             connectResetRequest.setServerIp(serverIp);
                             connectResetRequest.setServerPort(serverPort);
                             connection.asyncRequest(connectResetRequest, null);
@@ -396,6 +418,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                         }
 
                     } catch (ConnectionAlreadyClosedException e) {
+                        // 如果连接已经关闭，注销连接
                         unregister(expelledClientId);
                     } catch (Exception e) {
                         Loggers.REMOTE_DIGEST.error("Error occurs when expel connection, expelledClientId:{}", expelledClientId, e);
@@ -404,9 +427,11 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
 
                 //4.client active detection.
                 Loggers.REMOTE_DIGEST.info("Out dated connection ,size={}", outDatedConnections.size());
+                // 4、探测超时的client
                 if (CollectionUtils.isNotEmpty(outDatedConnections)) {
                     Set<String> successConnections = new HashSet<>();
                     final CountDownLatch latch = new CountDownLatch(outDatedConnections.size());
+                    // 发送ClientDetectionRequest，探测client是否还存活
                     for (String outDateConnectionId : outDatedConnections) {
                         try {
                             Connection connection = getConnection(outDateConnectionId);
@@ -427,6 +452,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                                     public void onResponse(Response response) {
                                         latch.countDown();
                                         if (response != null && response.isSuccess()) {
+                                            // 刷新client心跳时间
                                             connection.freshActiveTime();
                                             successConnections.add(outDateConnectionId);
                                         }
@@ -459,6 +485,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                             .info("Out dated connection check successCount={}", successConnections.size());
 
                     for (String outDateConnectionId : outDatedConnections) {
+                        // 如果探活失败，则关闭连接
                         if (!successConnections.contains(outDateConnectionId)) {
                             Loggers.REMOTE_DIGEST
                                     .info("[{}]Unregister Out dated connection....", outDateConnectionId);
@@ -639,6 +666,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
         }
         
         public int getCountLimitOfIp(String clientIp) {
+            // todo 优化 @zhangyuanyou
             if (countLimitPerClientIp.containsKey(clientIp)) {
                 Integer integer = countLimitPerClientIp.get(clientIp);
                 if (integer != null && integer >= 0) {
@@ -649,6 +677,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
         }
         
         public int getCountLimitOfApp(String appName) {
+            // todo 优化 @zhangyuanyou
             if (countLimitPerClientApp.containsKey(appName)) {
                 Integer integer = countLimitPerClientApp.get(appName);
                 if (integer != null && integer >= 0) {

@@ -121,6 +121,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     private void syncToAllServer(ClientEvent event) {
         Client client = event.getClient();
         // Only ephemeral data sync by Distro, persist client should sync by raft.
+        // 只有临时数据+本地负责的client，才会同步给其他server
         if (null == client || !client.isEphemeral() || !clientManager.isResponsibleClient(client)) {
             return;
         }

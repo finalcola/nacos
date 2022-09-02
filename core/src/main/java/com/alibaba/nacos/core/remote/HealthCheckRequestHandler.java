@@ -34,6 +34,7 @@ public class HealthCheckRequestHandler extends RequestHandler<HealthCheckRequest
     @Override
     @TpsControl(pointName = "HealthCheck")
     public HealthCheckResponse handle(HealthCheckRequest request, RequestMeta meta) {
+        // client检查server是否存活，直接返回response
         return new HealthCheckResponse();
     }
 }

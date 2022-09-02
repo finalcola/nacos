@@ -175,11 +175,12 @@ public class DistributedDatabaseOperateImpl extends RequestProcessor4CP implemen
     }
     
     protected void init() throws Exception {
-        
+        // 会使用本地的数据源（derby）
         this.dataSourceService = (LocalDataSourceServiceImpl) DynamicDataSource.getInstance().getDataSource();
         
         // Because in Raft + Derby mode, ensuring data consistency depends on the Raft's
         // log playback and snapshot recovery capabilities, and the last data must be cleared
+        // 因为jradt+derby模式下，数据的一致性是依靠raft协议的回放和快照能力，所以之前的数据需要清理掉
         this.dataSourceService.cleanAndReopenDerby();
         
         this.jdbcTemplate = dataSourceService.getJdbcTemplate();

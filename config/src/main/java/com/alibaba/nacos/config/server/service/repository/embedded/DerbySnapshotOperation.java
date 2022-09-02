@@ -85,7 +85,8 @@ public class DerbySnapshotOperation implements SnapshotOperation {
                 final String parentPath = Paths.get(writePath, snapshotDir).toString();
                 DiskUtils.deleteDirectory(parentPath);
                 DiskUtils.forceMkdir(parentPath);
-                
+
+                // 执行derby的转存sql，将数据保存到指定目录
                 doDerbyBackup(parentPath);
                 
                 final String outputFile = Paths.get(writePath, snapshotArchive).toString();
@@ -129,7 +130,8 @@ public class DerbySnapshotOperation implements SnapshotOperation {
             
             final String loadPath = Paths.get(readerPath, snapshotDir, "derby-data").toString();
             LogUtil.FATAL_LOG.info("snapshot load from : {}, and copy to : {}", loadPath, derbyBaseDir);
-            
+
+            // 启动derby数据库，并将之间derby转存的数据复制到目标地址
             doDerbyRestoreFromBackup(() -> {
                 final File srcDir = new File(loadPath);
                 final File destDir = new File(derbyBaseDir);

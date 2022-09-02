@@ -241,8 +241,10 @@ public class InstanceOperatorClientImpl implements InstanceOperator {
             clientBeat.setCluster(cluster);
             clientBeat.setServiceName(serviceName);
         }
+        // 将健康状态更新并发布事件等操作放到调度线程池执行
         ClientBeatProcessorV2 beatProcessor = new ClientBeatProcessorV2(namespaceId, clientBeat, client);
         HealthCheckReactor.scheduleNow(beatProcessor);
+        // 更新心跳时间
         client.setLastUpdatedTime();
         return NamingResponseCode.OK;
     }

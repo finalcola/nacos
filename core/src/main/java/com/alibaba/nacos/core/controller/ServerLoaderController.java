@@ -121,6 +121,7 @@ public class ServerLoaderController {
     @GetMapping("/reloadCurrent")
     public ResponseEntity<String> reloadCount(@RequestParam Integer count,
             @RequestParam(value = "redirectAddress", required = false) String redirectAddress) {
+        // 执行一次rebalance,让client连接到redirectAddress
         connectionManager.loadCount(count, redirectAddress);
         return ResponseEntity.ok().body("success");
     }
@@ -178,7 +179,8 @@ public class ServerLoaderController {
         
         LOGGER.info("Low load limit server list ={}", lowLimitServer);
         AtomicBoolean result = new AtomicBoolean(true);
-        
+
+        // 将client平均到低负载的server上
         for (int i = 0; i < overLimitServer.size() & i < lowLimitServer.size(); i++) {
             ServerReloadRequest serverLoaderInfoRequest = new ServerReloadRequest();
             serverLoaderInfoRequest.setReloadCount(overLimitCount);

@@ -68,7 +68,9 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
     public void init() {
         try {
             NotifyCenter.registerSubscriber(this);
+            // 拿到所有的server列表
             List<Member> members = serverMemberManager.allMembersWithoutSelf();
+            // 创建连接
             refresh(members);
             Loggers.CLUSTER
                     .warn("[ClusterRpcClientProxy] success to refresh cluster rpc client on start up,members ={} ",
@@ -88,13 +90,14 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
         
         //ensure to create client of new members
         for (Member member : members) {
-            
+            // 创建grpc连接
             if (MemberUtil.isSupportedLongCon(member)) {
                 createRpcClientAndStart(member, ConnectionType.GRPC);
             }
         }
         
         //shutdown and remove old members.
+        // 关闭已经移除的server连接
         Set<Map.Entry<String, RpcClient>> allClientEntrys = RpcClientFactory.getAllClientEntries();
         Iterator<Map.Entry<String, RpcClient>> iterator = allClientEntrys.iterator();
         List<String> newMemberKeys = members.stream().filter(MemberUtil::isSupportedLongCon)
@@ -118,6 +121,7 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
         Map<String, String> labels = new HashMap<>(2);
         labels.put(RemoteConstants.LABEL_SOURCE, RemoteConstants.LABEL_SOURCE_CLUSTER);
         String memberClientKey = memberClientKey(member);
+        // 创建grpc client
         RpcClient client = buildRpcClient(type, labels, memberClientKey);
         if (!client.getConnectionType().equals(type)) {
             Loggers.CLUSTER.info(",connection type changed,destroy client of member - > : {}", member);

@@ -87,7 +87,7 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
         }
         
         // server check.
-        // 处理心跳请求
+        // 校验server是否存活的请求，直接返回ok
         if (ServerCheckRequest.class.getSimpleName().equals(type)) {
             Payload serverCheckResponseP = GrpcUtils.convert(new ServerCheckResponse(CONTEXT_KEY_CONN_ID.get()));
             traceIfNecessary(serverCheckResponseP, false);
@@ -146,7 +146,8 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
             responseObserver.onCompleted();
             return;
         }
-        
+
+        // 不合法请求
         if (!(parseObj instanceof Request)) {
             Loggers.REMOTE_DIGEST
                     .warn("[{}] Invalid request receive  ,parsed payload is not a request,parseObj={}", connectionId,
@@ -167,7 +168,7 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
             requestMeta.setConnectionId(CONTEXT_KEY_CONN_ID.get());
             requestMeta.setClientVersion(connection.getMetaInfo().getVersion());
             requestMeta.setLabels(connection.getMetaInfo().getLabels());
-            // 刷新心跳时间
+            // 刷新连接最新存活时间
             connectionManager.refreshActiveTime(requestMeta.getConnectionId());
             // 调用handler处理请求
             Response response = requestHandler.handleRequest(request, requestMeta);

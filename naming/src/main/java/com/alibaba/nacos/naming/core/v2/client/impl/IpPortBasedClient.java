@@ -117,6 +117,7 @@ public class IpPortBasedClient extends AbstractClient {
             result.setExtendDatum(instancePublishInfo.getExtendDatum());
         }
         if (!ephemeral) {
+            // 临时实例，初始化healthCheckStatus字段
             result.initHealthCheck();
         }
         return result;

@@ -308,7 +308,7 @@ public abstract class GrpcClient extends RpcClient {
             ManagedChannel managedChannel = createNewManagedChannel(serverInfo.getServerIp(), port);
             RequestGrpc.RequestFutureStub newChannelStubTemp = createNewChannelStub(managedChannel);
             if (newChannelStubTemp != null) {
-                // 检查server是否正常
+                // 发送ServerCheckRequest，检查server是否正常
                 Response response = serverCheck(serverInfo.getServerIp(), port, newChannelStubTemp);
                 if (response == null || !(response instanceof ServerCheckResponse)) {
                     // 异常，关闭channel
@@ -316,6 +316,7 @@ public abstract class GrpcClient extends RpcClient {
                     return null;
                 }
 
+                // 注册双写流的stub
                 BiRequestStreamGrpc.BiRequestStreamStub biRequestStreamStub = BiRequestStreamGrpc
                         .newStub(newChannelStubTemp.getChannel());
                 GrpcConnection grpcConn = new GrpcConnection(serverInfo, grpcExecutor);
@@ -326,8 +327,8 @@ public abstract class GrpcClient extends RpcClient {
                 StreamObserver<Payload> payloadStreamObserver = bindRequestStream(biRequestStreamStub, grpcConn);
                 
                 // stream observer to send response to server
-                grpcConn.setPayloadStreamObserver(payloadStreamObserver);
-                grpcConn.setGrpcFutureServiceStub(newChannelStubTemp);
+                grpcConn.setPayloadStreamObserver(payloadStreamObserver); // 处理双写请求
+                grpcConn.setGrpcFutureServiceStub(newChannelStubTemp); // 处理request请求
                 grpcConn.setChannel(managedChannel);
                 //send a  setup request.
                 // 向server发送连接初始化的请求

@@ -69,6 +69,7 @@ public class DoubleWriteEventListener extends Subscriber<ServiceEvent.ServiceCha
         if (!upgradeJudgement.isUseGrpcFeatures()) {
             return;
         }
+        // 将服务变更双写到raft协议
         String taskKey = ServiceChangeV2Task.getKey(event.getService());
         ServiceChangeV2Task task = new ServiceChangeV2Task(event.getService(), DoubleWriteContent.INSTANCE);
         doubleWriteDelayTaskEngine.addTask(taskKey, task);

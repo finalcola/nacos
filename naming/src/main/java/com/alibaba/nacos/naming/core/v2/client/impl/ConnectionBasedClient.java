@@ -33,6 +33,8 @@ public class ConnectionBasedClient extends AbstractClient {
     /**
      * {@code true} means this client is directly connect to current server. {@code false} means this client is synced
      * from other server.
+     * {@code true} 代表client是直接连接到当前server，{@code false} 代表client是从其他server同步过来的
+     * ps.如果是true，则永远不会过期
      */
     private final boolean isNative;
     
@@ -72,6 +74,7 @@ public class ConnectionBasedClient extends AbstractClient {
     
     @Override
     public boolean isExpire(long currentTime) {
+        // 从其他server通过过来的 & 心跳超时
         return !isNative() && currentTime - getLastRenewTime() > ClientConfig.getInstance().getClientExpiredTime();
     }
 }

@@ -129,11 +129,15 @@ public class ServiceMetadataProcessor extends RequestProcessor4CP {
                 .newService(op.getNamespace(), op.getGroup(), op.getServiceName(), op.getMetadata().isEphemeral());
         Optional<ServiceMetadata> currentMetadata = namingMetadataManager.getServiceMetadata(service);
         if (currentMetadata.isPresent()) {
+            // 合并元数据
             ServiceMetadata newMetadata = mergeMetadata(currentMetadata.get(), op.getMetadata());
             Service singleton = ServiceManager.getInstance().getSingleton(service);
+            // 更新元数据
             namingMetadataManager.updateServiceMetadata(singleton, newMetadata);
         } else {
+            // 获取并创建Service
             Service singleton = ServiceManager.getInstance().getSingleton(service);
+            // 更新元数据
             namingMetadataManager.updateServiceMetadata(singleton, op.getMetadata());
         }
         doubleWriteMetadata(service, false);

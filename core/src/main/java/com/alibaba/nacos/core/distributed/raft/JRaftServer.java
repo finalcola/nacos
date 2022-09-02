@@ -337,7 +337,8 @@ public class JRaftServer {
             future.completeExceptionally(new IllegalArgumentException("No corresponding Raft Group found : " + group));
             return future;
         }
-        
+
+        // 回调，通知future执行执行完成
         FailoverClosureImpl closure = new FailoverClosureImpl(future);
         
         final Node node = tuple.node;

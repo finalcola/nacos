@@ -107,8 +107,8 @@ public class GrpcBiStreamRequestAcceptor extends BiRequestStreamGrpc.BiRequestSt
                                     payload.getBody().getValue().toStringUtf8(), payload.getMetadata());
                     return;
                 }
+                // client初始化连接请求
                 if (parseObj instanceof ConnectionSetupRequest) {
-                    // client创建链接完成后的请求
                     ConnectionSetupRequest setUpRequest = (ConnectionSetupRequest) parseObj;
                     Map<String, String> labels = setUpRequest.getLabels();
                     String appName = "-";
@@ -148,7 +148,9 @@ public class GrpcBiStreamRequestAcceptor extends BiRequestStreamGrpc.BiRequestSt
                         Loggers.REMOTE_DIGEST
                                 .warn("[{}]Receive response of server request  ,response={}", connectionId, response);
                     }
+                    // 通知回调
                     RpcAckCallbackSynchronizer.ackNotify(connectionId, response);
+                    // 刷新存活时间
                     connectionManager.refreshActiveTime(connectionId);
                 } else {
                     Loggers.REMOTE_DIGEST

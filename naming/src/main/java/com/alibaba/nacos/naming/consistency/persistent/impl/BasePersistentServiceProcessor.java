@@ -172,6 +172,7 @@ public abstract class BasePersistentServiceProcessor extends RequestProcessor4CP
         lock.lock();
         try {
             switch (op) {
+                // 保存到本地存储中
                 case Write:
                     kvStorage.batchPut(bwRequest.getKeys(), bwRequest.getValues());
                     break;
@@ -181,6 +182,7 @@ public abstract class BasePersistentServiceProcessor extends RequestProcessor4CP
                 default:
                     return Response.newBuilder().setSuccess(false).setErrMsg("unsupport operation : " + op).build();
             }
+            // 发布ValueChangeEvent
             publishValueChangeEvent(op, bwRequest);
             return Response.newBuilder().setSuccess(true).build();
         } catch (KvStorageException e) {

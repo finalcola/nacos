@@ -311,6 +311,7 @@ public abstract class RpcClient implements Closeable {
                     if (isShutdown()) {
                         break;
                     }
+                    // 如果reconnectionSignal有数据，则代表需要重连server
                     ReconnectContext reconnectContext = reconnectionSignal
                             .poll(keepAliveTime, TimeUnit.MILLISECONDS);
                     if (reconnectContext == null) {
@@ -351,7 +352,7 @@ public abstract class RpcClient implements Closeable {
                         
                     }
 
-                    // 保证serverInfo的正确性
+                    // serverInfo是需要重连的server地址，保证serverInfo的正确性
                     if (reconnectContext.serverInfo != null) {
                         // clear recommend server if server is not in server list.
                         boolean serverExist = false;
@@ -367,7 +368,7 @@ public abstract class RpcClient implements Closeable {
                             LoggerUtils.printIfInfoEnabled(LOGGER,
                                     "[{}] Recommend server is not in server list, ignore recommend server {}", name,
                                     reconnectContext.serverInfo.getAddress());
-                            
+                            // 不存在，将serverInfo置为空，会轮训的方式选择下一个
                             reconnectContext.serverInfo = null;
                             
                         }
@@ -420,7 +421,7 @@ public abstract class RpcClient implements Closeable {
         registerServerRequestHandler(new ConnectResetRequestHandler());
         
         // register client detection request.
-        // 注册一个server用来检测clint的处理器，直接返回空响应
+        // 注册一个server用来检测client是否的处理器，直接返回空响应
         registerServerRequestHandler(request -> {
             if (request instanceof ClientDetectionRequest) {
                 return new ClientDetectionResponse();
@@ -441,13 +442,16 @@ public abstract class RpcClient implements Closeable {
                 try {
                     synchronized (RpcClient.this) {
                         if (isRunning()) {
+                            // server由于负载较高，主动通知client切换到另一个server上
                             ConnectResetRequest connectResetRequest = (ConnectResetRequest) request;
                             if (StringUtils.isNotBlank(connectResetRequest.getServerIp())) {
+                                // 指定了另一个server的地址
                                 ServerInfo serverInfo = resolveServerInfo(
                                         connectResetRequest.getServerIp() + Constants.COLON + connectResetRequest
                                                 .getServerPort());
                                 switchServerAsync(serverInfo, false);
                             } else {
+                                // 轮训的方式选择下一个server
                                 switchServerAsync();
                             }
                         }
